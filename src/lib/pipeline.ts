@@ -1,10 +1,11 @@
 import { Chess } from 'chess.js';
 import { loadBook } from './book';
 import type { CardData } from './card';
-import { Engine } from './engine';
+import { getEngine } from './analysis';
+import { loadItems } from './library';
 import { importAccounts, siteName, type Account } from './importer';
 import { judgeMove, LEAK_DROP, type MoveVerdict } from './leakcheck';
-import { analyseOpening, moveNumber, type GameOpening } from './openings';
+import { moveNumber, type GameOpening } from './openings';
 import { buildReport, decisionNodes, deficit, leakFromNode, lossRate, score, type DecisionNode, type Report } from './report';
 import type { ImportProgress, Site } from './types';
 
@@ -13,28 +14,28 @@ export type Stage =
   | { kind: 'openings'; done: number; total: number }
   | { kind: 'engine'; done: number; total: number };
 
+
 export interface ReportResult {
   accounts: Account[];
+  items: GameOpening[];
   report: Report;
   /** Leak line extended with what usually happened next. */
   leakLine: string[] | null;
   mistake: MoveVerdict | null;
   checked: MoveVerdict[];
+  /** Every engine verdict computed for the report (seeds the background analysis). */
+  verdicts: { node: DecisionNode; v: MoveVerdict }[];
   card: CardData;
 }
 
-let engine: Engine | null = null;
-export const getEngine = () => (engine ??= new Engine());
-
-const yieldToUi = () => new Promise((r) => setTimeout(r, 0));
-
+/** Imports (incrementally) and builds the report. */
 export async function runReport(
   accounts: Account[],
   max: number,
   onStage: (s: Stage) => void,
   signal?: AbortSignal,
 ): Promise<ReportResult> {
-  const bookP = loadBook();
+  loadBook();
   getEngine(); // start loading the WASM while we download
   const sites: Partial<Record<Site, ImportProgress>> = {};
   const games = await importAccounts(
@@ -47,16 +48,13 @@ export async function runReport(
     signal,
   );
   if (!games.length) throw new Error('No standard chess games found for that username.');
+  return reportFromDevice(accounts, max, onStage);
+}
 
-  const book = await bookP;
-  const items: GameOpening[] = [];
-  for (let i = 0; i < games.length; i++) {
-    items.push(analyseOpening(games[i], book));
-    if (i % 20 === 19) {
-      onStage({ kind: 'openings', done: i + 1, total: games.length });
-      await yieldToUi();
-    }
-  }
+/** Builds the report from games already on the device (no network; cached evals make it quick). */
+export async function reportFromDevice(accounts: Account[], max: number, onStage: (s: Stage) => void): Promise<ReportResult> {
+  const items = await loadItems(accounts, max, (done, total) => onStage({ kind: 'openings', done, total }));
+  if (!items.length) throw new Error('No games on this device yet.');
   const report = buildReport(items);
 
   // Screen the user's repeated out-of-book moves with the engine; the leak is the repeated
@@ -83,7 +81,7 @@ export async function runReport(
     const own = verdicts.find(({ node }) => node.line.join(' ').startsWith(report.leak!.line.join(' ')));
     if (own) checked = [own.v];
   }
-  return { accounts, report, leakLine, mistake, checked, card: cardData(accounts, report, mistake, checked, leakLine) };
+  return { accounts, items, report, leakLine, mistake, checked, verdicts, card: cardData(accounts, report, mistake, checked, leakLine) };
 }
 
 /** Games that reached the position before `ply` along `line`. */

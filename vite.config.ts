@@ -29,5 +29,7 @@ export default defineConfig({
       },
     }),
   ],
+  // Phone testing over `tailscale serve` (tailnet-only HTTPS).
+  preview: { allowedHosts: ['.ts.net'] },
   test: { environment: 'node' },
 });

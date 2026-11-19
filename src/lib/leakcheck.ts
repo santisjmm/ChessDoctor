@@ -13,6 +13,8 @@ export interface MoveVerdict {
   bestPv: string[]; // SAN, starting with best
   cpBefore: number; // White POV
   cpAfter: number;
+  mateAfter: number | null; // White POV, after the played move
+  replyPv: string[]; // SAN, opponent's best line after the played move
   /** Win% the user gave away with the played move. */
   drop: number;
 }
@@ -64,6 +66,8 @@ export async function judgeMove(engine: Engine, line: string[], ply: number, lim
     bestPv: pvToSan(fenBefore, before.pv),
     cpBefore: before.cp,
     cpAfter: after.cp,
+    mateAfter: same ? before.mate : after.mate,
+    replyPv: same ? pvToSan(chess.fen(), before.pv.slice(1)) : pvToSan(chess.fen(), after.pv),
     drop: same ? 0 : Math.max(0, sign * (winPct(before.cp) - winPct(after.cp))),
   };
 }

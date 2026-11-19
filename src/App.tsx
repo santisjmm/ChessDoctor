@@ -1,82 +1,188 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { DEFAULT_GAMES } from './config';
+import { analysis } from './lib/analysis';
+import { db, type DrillItem } from './lib/db';
+import { drillsFromVerdicts, mainLineDrill, mistakeDrill, upsertDrills } from './lib/drills';
 import type { Account } from './lib/importer';
-import { runReport, type ReportResult, type Stage } from './lib/pipeline';
+import { saveAccounts, savedAccounts } from './lib/library';
+import { reportFromDevice, runReport, type ReportResult, type Stage } from './lib/pipeline';
 import { About } from './ui/About';
+import { DrillSession } from './ui/DrillSession';
+import { Home } from './ui/Home';
+import { Openings } from './ui/Openings';
 import { ReportView } from './ui/ReportView';
 import { Start } from './ui/Start';
-import { TrainLine } from './ui/TrainLine';
+import { TabBar, type Tab } from './ui/TabBar';
 import { Working } from './ui/Working';
-import { DEFAULT_GAMES } from './config';
 
-type View = 'start' | 'working' | 'report' | 'train' | 'about';
-const route = (): View => {
-  const v = location.hash.replace(/^#\/?/, '').split('?')[0];
-  return (['report', 'train', 'about'] as const).includes(v as never) ? (v as View) : 'start';
+type View = 'boot' | 'start' | 'working' | 'home' | 'openings' | 'report' | 'drill' | 'about';
+const ROUTES: View[] = ['start', 'home', 'openings', 'report', 'drill', 'about'];
+const routeView = (): View | null => {
+  const v = location.hash.replace(/^#\/?/, '').split('?')[0] as View;
+  return ROUTES.includes(v) ? v : null;
 };
 
+/** Hands a fresh report to the trainer: engine verdicts, drills and the background queue. */
+async function adopt(r: ReportResult) {
+  (window as unknown as Record<string, unknown>).__report = r; // for the headless check
+  analysis.seed(r.verdicts);
+  const lines = (['w', 'b'] as const).map((c) => mainLineDrill(r.items, c)).filter((d): d is DrillItem => !!d);
+  await upsertDrills([...drillsFromVerdicts(r.verdicts), ...lines]).catch(() => undefined);
+  void analysis.start(r.items);
+}
+
 export function App() {
-  const [view, setView] = useState<View>('start');
+  const [view, setView] = useState<View>('boot');
+  const [accounts, setAccounts] = useState<Account[]>(savedAccounts);
   const [stage, setStage] = useState<Stage | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ReportResult | null>(null);
+  const [session, setSession] = useState<DrillItem[]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
   const abort = useRef<AbortController | null>(null);
 
-  const go = (v: View) => {
-    location.hash = v === 'start' ? '/' : `/${v}`;
-  };
-  useEffect(() => {
-    const onHash = () => {
-      const v = route();
-      // Report/train need a computed report; after a reload, start again (games are cached on the device).
-      setView((cur) => (v === 'report' || v === 'train' ? (result ? v : 'start') : v === 'start' && cur === 'working' ? cur : v));
-    };
-    onHash();
-    window.addEventListener('hashchange', onHash);
-    return () => window.removeEventListener('hashchange', onHash);
-  }, [result]);
+  const go = useCallback((v: View) => {
+    setView(v);
+    const hash = `#/${v}`;
+    if (location.hash !== hash) history.pushState(null, '', hash);
+  }, []);
 
-  async function build(accounts: Account[]) {
+  // Back button / manual hash changes.
+  useEffect(() => {
+    const onPop = () => {
+      const v = routeView();
+      if (!v) return;
+      if ((v === 'report' || v === 'openings' || v === 'home') && !result) return;
+      if (v === 'drill' && !session.length) return;
+      setView(v);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [result, session]);
+
+  // Boot: returning users go straight to Today, built from the games on this device.
+  useEffect(() => {
+    (async () => {
+      const acc = savedAccounts();
+      const haveGames = acc.length > 0 && (await db.games.count().catch(() => 0)) > 0;
+      if (!haveGames) {
+        setView('start');
+        return;
+      }
+      const wanted = routeView();
+      setView(wanted === 'about' ? 'about' : 'home');
+      try {
+        const r = await reportFromDevice(acc, DEFAULT_GAMES, () => undefined);
+        setResult(r);
+        await adopt(r);
+        if (wanted === 'openings' || wanted === 'report') setView(wanted);
+      } catch {
+        setView('start');
+      }
+    })();
+  }, []);
+
+  async function build(acc: Account[], after: View = 'report') {
     abort.current?.abort();
     const ac = new AbortController();
     abort.current = ac;
     setError(null);
     setStage(null);
-    setView('working');
+    if (after === 'report') go('working');
+    else setBusy('Fetching…');
+    saveAccounts(acc);
+    setAccounts(acc);
     try {
-      localStorage.setItem('accounts', JSON.stringify(accounts));
-    } catch {
-      /* private mode */
-    }
-    try {
-      const r = await runReport(accounts, DEFAULT_GAMES, setStage, ac.signal);
+      const r = await runReport(acc, DEFAULT_GAMES, (s) => {
+        setStage(s);
+        if (after !== 'report') setBusy(s.kind === 'import' ? 'Fetching…' : 'Analysing…');
+      }, ac.signal);
       if (ac.signal.aborted) return;
-      (window as unknown as Record<string, unknown>).__report = r; // for the headless check
       setResult(r);
-      setView('report');
-      go('report');
+      await adopt(r);
+      go(after);
     } catch (e) {
       if (ac.signal.aborted) return;
       setError(e instanceof Error ? e.message : String(e));
-      setView('start');
+      if (after === 'report') go('start');
+    } finally {
+      setBusy(null);
     }
   }
 
+  const drill = (items: DrillItem[]) => {
+    if (!items.length) return;
+    setSession(items);
+    go('drill');
+  };
+
+  const tab = (view === 'home' || view === 'openings' || view === 'report' ? view : null) as Tab | null;
+
   return (
-    <div className="app">
-      {view === 'start' && <Start onSubmit={build} error={error} onAbout={() => go('about')} />}
+    <div className={`app ${tab ? 'with-tabs' : ''}`}>
+      {view === 'boot' && <main className="screen"><p className="hint">Loading…</p></main>}
+      {view === 'start' && <Start onSubmit={(a) => build(a, 'report')} error={error} onAbout={() => go('about')} />}
       {view === 'working' && (
         <Working
           stage={stage}
           onCancel={() => {
             abort.current?.abort();
-            setView('start');
-            go('start');
+            go(result ? 'home' : 'start');
           }}
         />
       )}
-      {view === 'report' && result && <ReportView result={result} onTrain={() => go('train')} onRestart={() => go('start')} onAbout={() => go('about')} />}
-      {view === 'train' && result && <TrainLine result={result} onBack={() => go('report')} />}
-      {view === 'about' && <About onBack={() => history.back()} />}
+      {view === 'home' && (
+        <Home
+          accounts={accounts}
+          result={result}
+          busy={busy}
+          onStart={drill}
+          onRefresh={() => build(accounts, 'home')}
+          onCard={() => go('report')}
+          onChangeAccounts={() => go('start')}
+        />
+      )}
+      {view === 'openings' && result && (
+        <Openings
+          items={result.items}
+          onDrill={async (item) => {
+            await upsertDrills([item]);
+            drill([(await db.drills.get(item.id)) ?? item]);
+          }}
+        />
+      )}
+      {view === 'report' && result && (
+        <ReportView
+          result={result}
+          onTrain={async () => {
+            const { mistake, report } = result;
+            const node = mistake && result.verdicts.find((p) => p.v === mistake)?.node;
+            const item = node ? mistakeDrill(node, mistake) : report.leak ? mainLineFromLeak(result) : null;
+            if (!item) return;
+            await upsertDrills([item]);
+            drill([(await db.drills.get(item.id)) ?? item]);
+          }}
+          onRestart={() => go('start')}
+          onAbout={() => go('about')}
+        />
+      )}
+      {view === 'drill' && <DrillSession key={session.map((s) => s.id).join()} items={session} onExit={() => go(result ? 'home' : 'start')} />}
+      {view === 'about' && <About onBack={() => go(result ? 'home' : 'start')} />}
+      {tab && <TabBar tab={tab} onTab={(t) => go(t)} />}
     </div>
   );
+}
+
+/** When the engine found no concrete mistake, the leak's usual line becomes a plain line drill. */
+function mainLineFromLeak(r: ReportResult): DrillItem | null {
+  const leak = r.report.leak!;
+  const color = leak.stat.color;
+  const line = [...(r.leakLine ?? leak.path)];
+  while (line.length && (line.length - 1) % 2 !== (color === 'w' ? 0 : 1)) line.pop();
+  if (!line.length) return null;
+  const now = Date.now();
+  return {
+    id: `${color}|${line.join(' ')}`, kind: 'line', color, family: leak.stat.family, line, focusPly: -1,
+    games: leak.lineTally.n, createdAt: now, box: 0, due: now, reps: 0, lapses: 0,
+  };
 }

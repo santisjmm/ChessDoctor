@@ -51,6 +51,18 @@ export interface CachedOpening {
   sans: string[];
 }
 
+/** Light review of one game's opening phase (see review.ts). */
+export interface GameReview {
+  id: string; // game id
+  v: number;
+  playedAt: number;
+  color: 'w' | 'b';
+  cps: number[]; // White-POV eval of every position, index = plies played
+  best: string[]; // engine best move (UCI) in each position
+  accuracy: number | null; // mean Lichess move accuracy of the user's moves
+  firstMistake: { ply: number; played: string; best: string; drop: number; reason: string } | null;
+}
+
 export const db = new Dexie('opening-trainer') as Dexie & {
   games: EntityTable<Game, 'id'>;
   profiles: EntityTable<Profile, 'key'>;
@@ -58,6 +70,7 @@ export const db = new Dexie('opening-trainer') as Dexie & {
   drills: EntityTable<DrillItem, 'id'>;
   attempts: EntityTable<Attempt, 'id'>;
   openings: EntityTable<CachedOpening, 'id'>;
+  reviews: EntityTable<GameReview, 'id'>;
 };
 
 db.version(1).stores({
@@ -72,6 +85,7 @@ db.version(3).stores({
   attempts: '++id, itemId, at',
   openings: 'id',
 });
+db.version(4).stores({ reviews: 'id, playedAt' });
 
 export async function latestGames(site: Site, user: string, n: number): Promise<Game[]> {
   return db.games

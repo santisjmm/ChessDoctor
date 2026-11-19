@@ -1,6 +1,8 @@
 // Background engine work: judges the user's repeated out-of-book moves, a few at a time,
 // only while the app is visible. Results feed the openings tree and the drill queue.
+import { db } from './db';
 import { drillsFromVerdicts, upsertDrills } from './drills';
+import { reviewGame } from './review';
 import { Engine } from './engine';
 import { judgeMove, type MoveVerdict } from './leakcheck';
 import type { GameOpening } from './openings';
@@ -14,12 +16,15 @@ export interface AnalysisState {
   done: number;
   total: number;
   running: boolean;
+  /** Game reviews done in the background this session (newest games first). */
+  reviewsDone: number;
+  reviewsTotal: number;
 }
 
 const nodeKey = (n: DecisionNode) => `${n.color}|${n.line.join(' ')}`;
 
 class AnalysisService {
-  private state: AnalysisState = { verdicts: new Map(), done: 0, total: 0, running: false };
+  private state: AnalysisState = { verdicts: new Map(), done: 0, total: 0, running: false, reviewsDone: 0, reviewsTotal: 0 };
   private listeners = new Set<() => void>();
   private generation = 0;
 
@@ -42,7 +47,7 @@ class AnalysisService {
   }
 
   /** (Re)starts the queue for these games. Positions already judged are skipped. */
-  async start(items: GameOpening[], { minSupport = 2, limit = 60 } = {}) {
+  async start(items: GameOpening[], { minSupport = 2, limit = 60, reviews = 30 } = {}) {
     const gen = ++this.generation;
     const nodes = decisionNodes(items, minSupport, 20, limit);
     const todo = nodes.filter((n) => !this.state.verdicts.has(nodeKey(n)));
@@ -59,6 +64,18 @@ class AnalysisService {
       if (batch.length >= 5) await upsertDrills(drillsFromVerdicts(batch.splice(0)));
     }
     await upsertDrills(drillsFromVerdicts(batch));
+    if (gen !== this.generation) return;
+
+    // Then review the newest games' openings, a few per session (battery).
+    const have = new Set((await db.reviews.toCollection().primaryKeys().catch(() => [])) as string[]);
+    const queue = [...items].sort((a, b) => b.game.playedAt - a.game.playedAt).filter((i) => !have.has(i.game.id)).slice(0, reviews);
+    this.set({ reviewsDone: 0, reviewsTotal: queue.length, running: queue.length > 0 });
+    for (const it of queue) {
+      await visible();
+      if (gen !== this.generation) return;
+      await reviewGame(getEngine(), it);
+      this.set({ reviewsDone: this.state.reviewsDone + 1 });
+    }
     if (gen === this.generation) this.set({ running: false });
   }
 }

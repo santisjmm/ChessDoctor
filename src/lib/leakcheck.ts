@@ -72,7 +72,7 @@ export async function judgeMove(engine: Engine, line: string[], ply: number, lim
   };
 }
 
-async function cachedEval(engine: Engine, fen: string, limits: SearchLimits): Promise<EngineResult> {
+export async function cachedEval(engine: Engine, fen: string, limits: SearchLimits): Promise<EngineResult> {
   const key = `${fen.split(' ').slice(0, 4).join(' ')}|${limits.depth}`;
   try {
     const hit = await db.evals.get(key);

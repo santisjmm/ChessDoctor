@@ -8,15 +8,17 @@ import { saveAccounts, savedAccounts } from './lib/library';
 import { reportFromDevice, runReport, type ReportResult, type Stage } from './lib/pipeline';
 import { About } from './ui/About';
 import { DrillSession } from './ui/DrillSession';
+import { Games } from './ui/Games';
 import { Home } from './ui/Home';
 import { Openings } from './ui/Openings';
+import { Progress } from './ui/Progress';
 import { ReportView } from './ui/ReportView';
 import { Start } from './ui/Start';
 import { TabBar, type Tab } from './ui/TabBar';
 import { Working } from './ui/Working';
 
-type View = 'boot' | 'start' | 'working' | 'home' | 'openings' | 'report' | 'drill' | 'about';
-const ROUTES: View[] = ['start', 'home', 'openings', 'report', 'drill', 'about'];
+type View = 'boot' | 'start' | 'working' | 'home' | 'openings' | 'games' | 'progress' | 'report' | 'drill' | 'about';
+const ROUTES: View[] = ['start', 'home', 'openings', 'games', 'progress', 'report', 'drill', 'about'];
 const routeView = (): View | null => {
   const v = location.hash.replace(/^#\/?/, '').split('?')[0] as View;
   return ROUTES.includes(v) ? v : null;
@@ -52,7 +54,7 @@ export function App() {
     const onPop = () => {
       const v = routeView();
       if (!v) return;
-      if ((v === 'report' || v === 'openings' || v === 'home') && !result) return;
+      if (['report', 'openings', 'home', 'games', 'progress'].includes(v) && !result) return;
       if (v === 'drill' && !session.length) return;
       setView(v);
     };
@@ -75,7 +77,7 @@ export function App() {
         const r = await reportFromDevice(acc, DEFAULT_GAMES, () => undefined);
         setResult(r);
         await adopt(r);
-        if (wanted === 'openings' || wanted === 'report') setView(wanted);
+        if (wanted && ['openings', 'report', 'games', 'progress'].includes(wanted)) setView(wanted);
       } catch {
         setView('start');
       }
@@ -116,7 +118,7 @@ export function App() {
     go('drill');
   };
 
-  const tab = (view === 'home' || view === 'openings' || view === 'report' ? view : null) as Tab | null;
+  const tab = (['home', 'openings', 'games', 'progress', 'report'].includes(view) ? view : null) as Tab | null;
 
   return (
     <div className={`app ${tab ? 'with-tabs' : ''}`}>
@@ -151,6 +153,16 @@ export function App() {
           }}
         />
       )}
+      {view === 'games' && result && (
+        <Games
+          items={result.items}
+          onDrill={async (item) => {
+            await upsertDrills([item]);
+            drill([(await db.drills.get(item.id)) ?? item]);
+          }}
+        />
+      )}
+      {view === 'progress' && result && <Progress items={result.items} />}
       {view === 'report' && result && (
         <ReportView
           result={result}

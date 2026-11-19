@@ -81,8 +81,17 @@ export function Home({
 
       {engine.running && (
         <div className="bar">
-          <div className="bar-label"><span>Engine checking your moves</span><span>{engine.done} / {engine.total}</span></div>
-          <div className="bar-track"><div className="bar-fill" style={{ width: `${(engine.done / Math.max(1, engine.total)) * 100}%` }} /></div>
+          {engine.done < engine.total ? (
+            <>
+              <div className="bar-label"><span>Engine checking your moves</span><span>{engine.done} / {engine.total}</span></div>
+              <div className="bar-track"><div className="bar-fill" style={{ width: `${(engine.done / Math.max(1, engine.total)) * 100}%` }} /></div>
+            </>
+          ) : (
+            <>
+              <div className="bar-label"><span>Reviewing your newest games</span><span>{engine.reviewsDone} / {engine.reviewsTotal}</span></div>
+              <div className="bar-track"><div className="bar-fill" style={{ width: `${(engine.reviewsDone / Math.max(1, engine.reviewsTotal)) * 100}%` }} /></div>
+            </>
+          )}
         </div>
       )}
 

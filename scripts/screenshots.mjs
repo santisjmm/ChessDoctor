@@ -139,6 +139,21 @@ if (await page.$('.today button.primary')) {
   await shot(page, '13-home-after');
 }
 
+// Games and a light review of the game with the most recent reviewed mistake (or the newest).
+await page.click('.tabbar button >> nth=2');
+await page.waitForSelector('main.games');
+await page.waitForTimeout(500);
+await shot(page, '14-games');
+const withMistake = await page.$('.game-row:has(.tag.red)');
+await (withMistake ?? (await page.$('.game-row'))).click();
+await page.waitForSelector('.verdict', { timeout: 120_000 });
+await page.waitForTimeout(500);
+await shot(page, '15-review');
+await page.click('.tabbar button >> nth=3');
+await page.waitForSelector('main.progress');
+await page.waitForTimeout(800);
+await shot(page, '16-progress');
+
 await page.goto(base + '#/about');
 await page.waitForTimeout(300);
 await shot(page, '7-about');

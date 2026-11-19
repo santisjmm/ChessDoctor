@@ -185,3 +185,61 @@ button { font: inherit; cursor: pointer; }
 @media (max-width: 380px) {
   .move-row { grid-template-columns: 64px 28px 40px 44px 1fr; font-size: 14px; }
 }
+
+/* --- M2b: games, review, progress, charts --- */
+:root { --eval-white: #e9e6df; --eval-black: #3a3f4a; --eval-bg: #2a2e37; }
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) { --eval-white: #ffffff; --eval-black: #5b6472; --eval-bg: #d9dde3; }
+}
+.tabbar button span { font-size: 11px; }
+.game-list, .fix-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
+.game-row {
+  width: 100%; display: grid; grid-template-columns: 44px 1fr auto; gap: 10px; align-items: center; text-align: left;
+  background: var(--surface); border: 0; border-radius: 10px; padding: 10px 12px; color: var(--text); font-size: 15px;
+}
+.res { font-weight: 700; font-size: 13px; }
+.g-main { display: grid; gap: 2px; min-width: 0; }
+.g-main b, .g-main span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.g-main span { font-size: 13px; }
+.g-acc { display: grid; justify-items: end; gap: 4px; font-variant-numeric: tabular-nums; }
+.nav-row .grow { flex: 1; font-size: 14px; }
+.verdict { background: var(--surface); border-radius: 16px; padding: 14px 16px; display: grid; gap: 8px; border-left: 6px solid var(--green); }
+.verdict.has-mistake { border-left-color: var(--red); }
+.verdict-title { font-size: 18px; font-weight: 700; }
+.review-moves { display: flex; flex-wrap: wrap; gap: 2px; }
+.mvbtn { background: none; border: 0; color: var(--muted); padding: 3px 5px; border-radius: 6px; font-size: 15px; }
+.mvbtn.mine { color: var(--text); font-weight: 600; }
+.mvbtn.on { background: var(--surface-2); outline: 1px solid var(--line); }
+.mvbtn.inaccuracy { color: #e8b04a; }
+.mvbtn.mistake, .mvbtn.blunder { color: var(--red); }
+.evalgraph { position: relative; width: 100%; touch-action: manipulation; }
+.evalgraph svg, .chart svg { display: block; }
+.eval-bg { fill: var(--eval-bg); }
+.eval-white { fill: var(--eval-white); }
+.eval-black { fill: var(--eval-black); }
+.grid { stroke: var(--line); stroke-width: 1; }
+.crosshair { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+.series { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.series.thin { stroke: var(--muted); stroke-width: 1.5; }
+.dot { fill: var(--accent); stroke: var(--bg); stroke-width: 2; }
+.mark { stroke: var(--bg); stroke-width: 2; }
+.mark.inaccuracy { fill: #e8b04a; }
+.mark.mistake, .mark.blunder { fill: var(--red); }
+.axis { fill: var(--muted); font-size: 11px; }
+.chart { position: relative; margin: 0; background: var(--surface); border-radius: 16px; padding: 12px; }
+.chart figcaption { font-weight: 700; font-size: 15px; margin-bottom: 6px; }
+.tooltip {
+  position: absolute; top: 40px; width: 150px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px;
+  padding: 8px 10px; display: grid; gap: 2px; font-size: 13px; pointer-events: none;
+}
+.tooltip span { color: var(--muted); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.hero { display: grid; gap: 4px; }
+.hero-num { font-size: 56px; font-weight: 800; line-height: 1; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.boxes { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 6px; }
+.boxes li { display: grid; grid-template-columns: 130px 1fr 32px; gap: 10px; align-items: center; font-size: 14px; }
+.box-bar { height: 10px; background: var(--surface-2); border-radius: 4px; overflow: hidden; }
+.box-bar i { display: block; height: 100%; background: var(--accent); border-radius: 0 4px 4px 0; }
+.box-n { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+.fix-list li { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; background: var(--surface); border-radius: 10px; padding: 10px 12px; }
+.status { font-size: 13px; font-weight: 700; white-space: nowrap; }

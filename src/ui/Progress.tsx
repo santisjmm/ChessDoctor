@@ -1,11 +1,12 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useMemo, useSyncExternalStore } from 'react';
+import { useMemo, useState, useSyncExternalStore } from 'react';
 import { analysis } from '../lib/analysis';
 import { db, type DrillItem, type GameReview } from '../lib/db';
 import type { GameOpening } from '../lib/openings';
 import { accuracyOverTime, fixState, type FixStatus } from '../lib/progress';
 import { INTERVALS_DAYS, MASTERED_BOX } from '../lib/srs';
 import { LineChart } from './charts';
+import { Stats } from './Stats';
 
 const label = (ply: number, san: string) => `${Math.floor(ply / 2) + 1}${ply % 2 === 0 ? '.' : '...'}${san}`;
 const STATUS: Record<FixStatus, [string, string]> = {
@@ -32,9 +33,18 @@ export function Progress({ items }: { items: GameOpening[] }) {
   const boxes = Array.from({ length: MASTERED_BOX + 1 }, (_, b) => drills.filter((d) => d.box === b).length);
   const maxBox = Math.max(1, ...boxes);
 
+  const [tab, setTab] = useState<'training' | 'results'>('training');
   return (
     <main className="screen progress">
-      <h1 className="tight">Progress</h1>
+      <header className="row">
+        <h1 className="tight">Progress</h1>
+        <div className="seg" role="tablist" aria-label="Progress">
+          <button role="tab" aria-selected={tab === 'training'} onClick={() => setTab('training')}>Training</button>
+          <button role="tab" aria-selected={tab === 'results'} onClick={() => setTab('results')}>Results</button>
+        </div>
+      </header>
+      {tab === 'results' ? <Stats items={items} /> : (
+      <>
 
       <div className="cols">
       <div>
@@ -104,6 +114,8 @@ export function Progress({ items }: { items: GameOpening[] }) {
       </section>
       </div>
       </div>
+      </>
+      )}
     </main>
   );
 }

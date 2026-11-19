@@ -14,6 +14,12 @@ better move, why, and the games where it went wrong. **Drills** use Leitner spac
 (1/3/7/16/35 days; a slip comes back in 10 minutes). Stockfish keeps checking your 60
 most-repeated moves in the background while the app is open.
 
+**Since then:** a responsive layout (phone, tablet, desktop with sidebar and board|panel),
+share links (`/r/l/<user>`, `/r/c/<user>`), and features ported from the owner's Review app:
+whole-game review (move classification, chess.com-calibrated accuracy, Game Rating, key
+moments, variation mode), My mistakes puzzles from reviewed games, Learn an opening from the
+book, PGN import and a Results tab (time controls, rating over time, score vs rating gap).
+
 ## How it works
 
 | Piece | Where it runs |

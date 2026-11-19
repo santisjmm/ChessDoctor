@@ -95,7 +95,8 @@ export function App() {
     })();
   }, []);
 
-  async function build(acc: Account[], after: View = 'report') {
+  async function build(online: Account[], after: View = 'report') {
+    const acc = [...online, ...savedAccounts().filter((a) => a.site === 'pgn')];
     abort.current?.abort();
     const ac = new AbortController();
     abort.current = ac;
@@ -198,6 +199,14 @@ export function App() {
       {view === 'games' && result && (
         <Games
           items={result.items}
+          onImported={async (a) => {
+            const acc = [...accounts.filter((x) => !(x.site === 'pgn' && x.user.toLowerCase() === a.user.toLowerCase())), a];
+            saveAccounts(acc);
+            setAccounts(acc);
+            const r = await reportFromDevice(acc, DEFAULT_GAMES, () => undefined);
+            setResult(r);
+            await adopt(r);
+          }}
           onDrill={async (item) => {
             await upsertDrills([item]);
             drill([(await db.drills.get(item.id)) ?? item]);

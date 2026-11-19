@@ -23,6 +23,13 @@ export async function importAccounts(
   // Different hosts: run both sites at the same time (each site stays one request at a time).
   await Promise.all(
     accounts.map(async ({ site, user }) => {
+      if (site === 'pgn') {
+        // Imported from a file: nothing to fetch, just read what is on the device.
+        const games = await latestGames(site, user.trim().toLowerCase(), max);
+        onProgress({ site, fetched: games.length, target: games.length, note: 'done' });
+        all.push(...games);
+        return;
+      }
       const u = user.trim().toLowerCase();
       const key = `${site}:${u}`;
       const profile = await db.profiles.get(key);
@@ -65,4 +72,4 @@ export async function importAccounts(
   return all;
 }
 
-export const siteName = (s: Site) => (s === 'lichess' ? 'Lichess' : 'Chess.com');
+export const siteName = (s: Site) => (s === 'lichess' ? 'Lichess' : s === 'chesscom' ? 'Chess.com' : 'PGN import');

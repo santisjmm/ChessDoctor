@@ -20,13 +20,13 @@ export interface Point {
 }
 
 /** Single-series line chart (no legend: the title names it), with a tap/hover tooltip. */
-export function LineChart({ points, format, title }: { points: Point[]; format: (v: number) => string; title: string }) {
+export function LineChart({ points, format, title, step = 10, clamp = [0, 100] }: { points: Point[]; format: (v: number) => string; title: string; step?: number; clamp?: [number, number] }) {
   const [ref, w] = useWidth<HTMLDivElement>();
   const [hover, setHover] = useState<number | null>(null);
   const h = 180, padL = 36, padR = 12, padT = 12, padB = 26;
   const vals = points.map((p) => p.value);
-  const lo = Math.max(0, Math.floor((Math.min(...vals) - 5) / 10) * 10);
-  const hi = Math.min(100, Math.ceil((Math.max(...vals) + 5) / 10) * 10);
+  const lo = Math.max(clamp[0], Math.floor((Math.min(...vals) - step / 2) / step) * step);
+  const hi = Math.min(clamp[1], Math.ceil((Math.max(...vals) + step / 2) / step) * step);
   const x = (i: number) => padL + (points.length === 1 ? (w - padL - padR) / 2 : (i * (w - padL - padR)) / (points.length - 1));
   const y = (v: number) => padT + ((hi - v) * (h - padT - padB)) / Math.max(1, hi - lo);
   const ticks = [lo, (lo + hi) / 2, hi];
@@ -44,8 +44,8 @@ export function LineChart({ points, format, title }: { points: Point[]; format: 
           </g>
         ))}
         {points.map((p, i) =>
-          i % labelEvery === 0 || i === points.length - 1 ? (
-            <text key={i} x={x(i)} y={h - 8} className="axis" textAnchor="middle">{p.label}</text>
+          (points.length - 1 - i) % labelEvery === 0 ? ( // evenly spaced back from the newest point
+            <text key={i} x={x(i)} y={h - 8} className="axis" textAnchor={x(i) > w - 40 ? 'end' : x(i) < padL + 20 ? 'start' : 'middle'}>{p.label}</text>
           ) : null,
         )}
         {hover !== null && <line x1={x(hover)} x2={x(hover)} y1={padT} y2={h - padB} className="crosshair" />}

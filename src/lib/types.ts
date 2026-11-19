@@ -1,4 +1,4 @@
-export type Site = 'lichess' | 'chesscom';
+export type Site = 'lichess' | 'chesscom' | 'pgn';
 export type Color = 'w' | 'b';
 
 /** One game, from the importing user's point of view. */

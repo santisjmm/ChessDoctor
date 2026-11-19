@@ -4,7 +4,7 @@ import { moveLabel, type ReportResult } from '../lib/pipeline';
 import { moveNumber } from '../lib/openings';
 import { score } from '../lib/report';
 import { APP_NAME, APP_URL } from '../config';
-import { shareUrl } from '../lib/share';
+import { shareable, shareUrl } from '../lib/share';
 
 export function ReportView({
   result, onTrain, onRestart, onAbout, shared = false,
@@ -33,7 +33,8 @@ export function ReportView({
   }, [card, format]);
 
   const filename = `opening-report-${card.name.replace(/[^A-Za-z0-9_-]+/g, '_')}-${format}.png`;
-  const link = shareUrl(result.accounts);
+  const canLink = shareable(result.accounts).length > 0;
+  const link = canLink ? shareUrl(result.accounts) : `https://${APP_URL}`;
   const shareText = shared
     ? `${card.name}’s ${APP_NAME} opening report card: ${link}`
     : `My ${APP_NAME} opening report card: ${link}\nGet yours free at https://${APP_URL}`;
@@ -68,7 +69,7 @@ export function ReportView({
           Download PNG
         </button>
       </div>
-      <button
+      {canLink && <button
         className="link center-self"
         onClick={async () => {
           try {
@@ -80,7 +81,7 @@ export function ReportView({
         }}
       >
         Copy link to this card
-      </button>
+      </button>}
       {msg && <p className="hint center">{msg}</p>}
       </div>
       <div className="split-side">

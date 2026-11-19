@@ -7,6 +7,8 @@ import { getEngine } from '../lib/analysis';
 import { db, type DrillItem, type GameReview } from '../lib/db';
 import { drillId, positionDrill, positionDrillsFrom, upsertDrills } from '../lib/drills';
 import { FullReviewView } from './FullReviewView';
+import { PgnImport } from './PgnImport';
+import type { Account } from '../lib/importer';
 import { evalWords } from '../lib/reason';
 import { classify, drops, reviewGame } from '../lib/review';
 import { OPENING_PLIES, plyColor, type GameOpening } from '../lib/openings';
@@ -18,7 +20,8 @@ const fmtDate = (t: number) => new Date(t).toLocaleDateString('en-GB', { day: 'n
 const RESULT = { 1: ['Won', 'good'], 0.5: ['Draw', 'muted'], 0: ['Lost', 'bad'] } as const;
 const SYMBOL = { inaccuracy: '?!', mistake: '?', blunder: '??' } as const;
 
-export function Games({ items, onDrill }: { items: GameOpening[]; onDrill: (d: DrillItem) => void }) {
+export function Games({ items, onDrill, onImported }: { items: GameOpening[]; onDrill: (d: DrillItem) => void; onImported: (a: Account) => Promise<void> }) {
+  const [importing, setImporting] = useState(false);
   const [filter, setFilter] = useState<'all' | 'w' | 'b'>('all');
   const [shown, setShown] = useState(40);
   const [open, setOpen] = useState<GameOpening | null>(null);
@@ -39,7 +42,11 @@ export function Games({ items, onDrill }: { items: GameOpening[]; onDrill: (d: D
           ))}
         </div>
       </header>
-      <p className="hint">Tap a game to review its opening. The newest games are reviewed in the background.</p>
+      <div className="row">
+        <p className="hint">Tap a game to review it. The newest games’ openings are reviewed in the background.</p>
+        {!importing && <button className="secondary small" onClick={() => setImporting(true)}>Import PGN</button>}
+      </div>
+      {importing && <PgnImport onImported={onImported} onClose={() => setImporting(false)} />}
       <ul className="game-list">
         {list.slice(0, shown).map((it) => {
           const r = byId.get(it.game.id);

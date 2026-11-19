@@ -7,6 +7,13 @@ everything (game import, opening book, Stockfish) runs on the user's device.
 and get a shareable card (best opening, your leak, the better move) built from the last 300
 games, with no sign-up, plus a first drill of the leak line.
 
+**Milestone 2, the trainer:** returning users open on **Today** (about 10 minutes of due drills
+and a streak). **Openings** is a per-colour explorer of what you actually play: games, score
+against your average, where you leave the book, and engine verdicts. A flagged move shows the
+better move, why, and the games where it went wrong. **Drills** use Leitner spaced repetition
+(1/3/7/16/35 days; a slip comes back in 10 minutes). Stockfish keeps checking your 60
+most-repeated moves in the background while the app is open.
+
 ## How it works
 
 | Piece | Where it runs |
@@ -14,7 +21,7 @@ games, with no sign-up, plus a first drill of the leak line.
 | Game import | Browser → public Lichess API (NDJSON stream, `since=` for incremental) and Chess.com PubAPI (monthly archives, newest first). One request at a time per host, 60 s back-off on 429. |
 | Opening book | `public/book.json`, built from [lichess-org/chess-openings](https://github.com/lichess-org/chess-openings) (CC0) by `npm run book`. Every position on a named line counts as book. |
 | Engine | Stockfish 19 lite, single-threaded WASM (`public/engine/`, copied from the `stockfish` npm package by `npm run engine`). Web Worker, UCI, depth 12 / 700 ms cap. No COOP/COEP headers needed. |
-| Storage | IndexedDB (Dexie): games, import state, engine evals cache, saved lines. |
+| Storage | IndexedDB (Dexie): games, import state, per-game opening analysis, engine evals cache, drills, attempts. |
 | Card | Canvas → PNG (1080×1350 phone, 1200×630 wide). Web Share API with files, falling back to a download. |
 
 **Finding the leak** (`src/lib/report.ts`, `src/lib/pipeline.ts`):

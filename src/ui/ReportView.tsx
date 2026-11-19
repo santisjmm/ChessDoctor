@@ -4,8 +4,11 @@ import { moveLabel, type ReportResult } from '../lib/pipeline';
 import { moveNumber } from '../lib/openings';
 import { score } from '../lib/report';
 import { APP_NAME, APP_URL } from '../config';
+import { shareUrl } from '../lib/share';
 
-export function ReportView({ result, onTrain, onRestart, onAbout }: { result: ReportResult; onTrain: () => void; onRestart: () => void; onAbout: () => void }) {
+export function ReportView({
+  result, onTrain, onRestart, onAbout, shared = false,
+}: { result: ReportResult; onTrain: () => void; onRestart: () => void; onAbout: () => void; shared?: boolean }) {
   const [format, setFormat] = useState<CardFormat>('portrait');
   const [png, setPng] = useState<{ url: string; blob: Blob } | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -30,12 +33,15 @@ export function ReportView({ result, onTrain, onRestart, onAbout }: { result: Re
   }, [card, format]);
 
   const filename = `opening-report-${card.name.replace(/[^A-Za-z0-9_-]+/g, '_')}-${format}.png`;
-  const shareText = `My ${APP_NAME} opening report card. Get yours free at https://${APP_URL}`;
+  const link = shareUrl(result.accounts);
+  const shareText = shared
+    ? `${card.name}’s ${APP_NAME} opening report card: ${link}`
+    : `My ${APP_NAME} opening report card: ${link}\nGet yours free at https://${APP_URL}`;
 
   return (
     <main className="screen report">
       <header className="row">
-        <button className="link" onClick={onRestart}>← New report</button>
+        <button className="link" onClick={onRestart}>{shared ? '← Make my own' : '← New report'}</button>
         <div className="seg" role="tablist" aria-label="Card size">
           <button role="tab" aria-selected={format === 'portrait'} onClick={() => setFormat('portrait')}>Phone</button>
           <button role="tab" aria-selected={format === 'wide'} onClick={() => setFormat('wide')}>Wide</button>
@@ -60,9 +66,30 @@ export function ReportView({ result, onTrain, onRestart, onAbout }: { result: Re
           Download PNG
         </button>
       </div>
+      <button
+        className="link center-self"
+        onClick={async () => {
+          try {
+            await navigator.clipboard.writeText(link);
+            setMsg('Link copied. It rebuilds this card on the viewer’s device.');
+          } catch {
+            setMsg(link);
+          }
+        }}
+      >
+        Copy link to this card
+      </button>
       {msg && <p className="hint center">{msg}</p>}
 
-      {report.leak && (
+      {shared && (
+        <section className="cta">
+          <h2>What’s your leak?</h2>
+          <p>Get your own card in about 20 seconds, then train the line you keep getting wrong. Free, no sign-up, runs on your phone.</p>
+          <button className="primary" onClick={onRestart}>Get my own report card</button>
+        </section>
+      )}
+
+      {!shared && report.leak && (
         <section className="cta">
           <h2>Fix your leak</h2>
           <p>
@@ -80,8 +107,8 @@ export function ReportView({ result, onTrain, onRestart, onAbout }: { result: Re
       )}
 
       <section>
-        <h2>Your openings</h2>
-        <p className="hint">Score compared with your average as that colour (White {pct(score(report.byColor.w))}, Black {pct(score(report.byColor.b))}).</p>
+        <h2>{shared ? 'Openings' : 'Your openings'}</h2>
+        <p className="hint">Score compared with {shared ? 'their' : 'your'} average as that colour (White {pct(score(report.byColor.w))}, Black {pct(score(report.byColor.b))}).</p>
         {(['w', 'b'] as const).map((c) => (
           <div key={c} className="op-group">
             <h3>As {c === 'w' ? 'White' : 'Black'}</h3>

@@ -5,6 +5,7 @@ import { db, type DrillItem } from './lib/db';
 import { drillsFromVerdicts, mainLineDrill, mistakeDrill, upsertDrills } from './lib/drills';
 import type { Account } from './lib/importer';
 import { saveAccounts, savedAccounts } from './lib/library';
+import { parseSharePath } from './lib/share';
 import { reportFromDevice, runReport, type ReportResult, type Stage } from './lib/pipeline';
 import { About } from './ui/About';
 import { DrillSession } from './ui/DrillSession';
@@ -12,13 +13,14 @@ import { Games } from './ui/Games';
 import { Home } from './ui/Home';
 import { Openings } from './ui/Openings';
 import { Progress } from './ui/Progress';
+import { SharedIntro } from './ui/SharedIntro';
 import { ReportView } from './ui/ReportView';
 import { Start } from './ui/Start';
 import { TabBar, type Tab } from './ui/TabBar';
 import { Working } from './ui/Working';
 
-type View = 'boot' | 'start' | 'working' | 'home' | 'openings' | 'games' | 'progress' | 'report' | 'drill' | 'about';
-const ROUTES: View[] = ['start', 'home', 'openings', 'games', 'progress', 'report', 'drill', 'about'];
+type View = 'boot' | 'start' | 'working' | 'home' | 'openings' | 'games' | 'progress' | 'report' | 'drill' | 'about' | 'shared' | 'shared-report';
+const ROUTES: View[] = ['start', 'home', 'openings', 'games', 'progress', 'report', 'drill', 'about', 'shared', 'shared-report'];
 const routeView = (): View | null => {
   const v = location.hash.replace(/^#\/?/, '').split('?')[0] as View;
   return ROUTES.includes(v) ? v : null;
@@ -41,6 +43,9 @@ export function App() {
   const [result, setResult] = useState<ReportResult | null>(null);
   const [session, setSession] = useState<DrillItem[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
+  // Someone else's card opened from a share link: never saved, never trained.
+  const [shared] = useState<Account[] | null>(() => parseSharePath(location.pathname));
+  const [sharedResult, setSharedResult] = useState<ReportResult | null>(null);
   const abort = useRef<AbortController | null>(null);
 
   const go = useCallback((v: View) => {
@@ -56,15 +61,21 @@ export function App() {
       if (!v) return;
       if (['report', 'openings', 'home', 'games', 'progress'].includes(v) && !result) return;
       if (v === 'drill' && !session.length) return;
+      if ((v === 'shared' || v === 'shared-report') && !shared) return;
+      if (v === 'shared-report' && !sharedResult) return;
       setView(v);
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
-  }, [result, session]);
+  }, [result, session, shared, sharedResult]);
 
   // Boot: returning users go straight to Today, built from the games on this device.
   useEffect(() => {
     (async () => {
+      if (shared) {
+        setView('shared');
+        return;
+      }
       const acc = savedAccounts();
       const haveGames = acc.length > 0 && (await db.games.count().catch(() => 0)) > 0;
       if (!haveGames) {
@@ -112,6 +123,33 @@ export function App() {
     }
   }
 
+  /** Builds a shared card on this device without touching the viewer's own accounts or drills. */
+  async function buildShared(acc: Account[]) {
+    abort.current?.abort();
+    const ac = new AbortController();
+    abort.current = ac;
+    setError(null);
+    setStage(null);
+    go('working');
+    try {
+      const r = await runReport(acc, DEFAULT_GAMES, setStage, ac.signal);
+      if (ac.signal.aborted) return;
+      (window as unknown as Record<string, unknown>).__report = r; // for the headless check
+      setSharedResult(r);
+      go('shared-report');
+    } catch (e) {
+      if (ac.signal.aborted) return;
+      setError(e instanceof Error ? e.message : String(e));
+      go('shared');
+    }
+  }
+
+  /** Leaves a share link for the app proper (own card or Today). */
+  const leaveShared = () => {
+    history.pushState(null, '', '/');
+    location.reload();
+  };
+
   const drill = (items: DrillItem[]) => {
     if (!items.length) return;
     setSession(items);
@@ -123,13 +161,17 @@ export function App() {
   return (
     <div className={`app ${tab ? 'with-tabs' : ''}`}>
       {view === 'boot' && <main className="screen"><p className="hint">Loading…</p></main>}
+      {view === 'shared' && shared && <SharedIntro accounts={shared} error={error} onBuild={() => buildShared(shared)} onOwn={leaveShared} />}
+      {view === 'shared-report' && sharedResult && (
+        <ReportView result={sharedResult} shared onTrain={leaveShared} onRestart={leaveShared} onAbout={() => go('about')} />
+      )}
       {view === 'start' && <Start onSubmit={(a) => build(a, 'report')} error={error} onAbout={() => go('about')} />}
       {view === 'working' && (
         <Working
           stage={stage}
           onCancel={() => {
             abort.current?.abort();
-            go(result ? 'home' : 'start');
+            go(shared && !sharedResult ? 'shared' : result ? 'home' : 'start');
           }}
         />
       )}
@@ -179,7 +221,7 @@ export function App() {
         />
       )}
       {view === 'drill' && <DrillSession key={session.map((s) => s.id).join()} items={session} onExit={() => go(result ? 'home' : 'start')} />}
-      {view === 'about' && <About onBack={() => go(result ? 'home' : 'start')} />}
+      {view === 'about' && <About onBack={() => go(shared ? (sharedResult ? 'shared-report' : 'shared') : result ? 'home' : 'start')} />}
       {tab && <TabBar tab={tab} onTab={(t) => go(t)} />}
     </div>
   );

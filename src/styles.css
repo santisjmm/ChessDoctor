@@ -307,3 +307,65 @@ button { font: inherit; cursor: pointer; }
   /* The review also shows the eval graph and controls under the board. */
   .review .split-main .mini-board { width: min(100%, calc(100vh - 330px)); }
 }
+
+/* --- Full game review: move classes ------------------------------------------------------ */
+:root {
+  --cls-brilliant: #26c2b6; --cls-great: #5b8fd6; --cls-best: #4cc38a; --cls-excellent: #7cc59a; --cls-good: #93a59a;
+  --cls-book: #b08d6a; --cls-inaccuracy: #e8b04a; --cls-mistake: #f08a4b; --cls-miss: #e86b8a; --cls-blunder: #ff5c5c;
+}
+.players { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.player { background: var(--surface); border-radius: 14px; padding: 12px; display: grid; gap: 6px; min-width: 0; }
+.player.me { outline: 1px solid var(--line); }
+.player-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.player-head b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
+.player-head .acc { flex: none; }
+.acc { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.class-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip { font: inherit; font-size: 12px; font-weight: 700; padding: 3px 7px; border-radius: 99px; background: var(--surface-2); color: var(--text); border: 1px solid transparent; }
+button.chip { cursor: pointer; }
+.chip.on { border-color: var(--text); }
+.chip-name { font-weight: 500; color: var(--muted); }
+.badge { display: inline-grid; place-items: center; min-width: 26px; height: 26px; border-radius: 50%; font-size: 13px; font-weight: 800; color: #10131a; }
+.verdict[class*='cls-border-'] { border-left-width: 6px; }
+.cls-brilliant.chip { box-shadow: inset 3px 0 0 var(--cls-brilliant); }
+.badge.cls-brilliant { background: var(--cls-brilliant); }
+.verdict.cls-border-brilliant { border-left-color: var(--cls-brilliant); }
+.mvbtn.cls-text-brilliant { color: var(--cls-brilliant); }
+.mark.brilliant { fill: var(--cls-brilliant); }
+.cls-great.chip { box-shadow: inset 3px 0 0 var(--cls-great); }
+.badge.cls-great { background: var(--cls-great); }
+.verdict.cls-border-great { border-left-color: var(--cls-great); }
+.mvbtn.cls-text-great { color: var(--cls-great); }
+.mark.great { fill: var(--cls-great); }
+.cls-best.chip { box-shadow: inset 3px 0 0 var(--cls-best); }
+.badge.cls-best { background: var(--cls-best); }
+.verdict.cls-border-best { border-left-color: var(--cls-best); }
+.cls-excellent.chip { box-shadow: inset 3px 0 0 var(--cls-excellent); }
+.badge.cls-excellent { background: var(--cls-excellent); }
+.verdict.cls-border-excellent { border-left-color: var(--cls-excellent); }
+.cls-good.chip { box-shadow: inset 3px 0 0 var(--cls-good); }
+.badge.cls-good { background: var(--cls-good); }
+.verdict.cls-border-good { border-left-color: var(--cls-good); }
+.cls-book.chip { box-shadow: inset 3px 0 0 var(--cls-book); }
+.badge.cls-book { background: var(--cls-book); }
+.verdict.cls-border-book { border-left-color: var(--cls-book); }
+.cls-inaccuracy.chip { box-shadow: inset 3px 0 0 var(--cls-inaccuracy); }
+.badge.cls-inaccuracy { background: var(--cls-inaccuracy); }
+.verdict.cls-border-inaccuracy { border-left-color: var(--cls-inaccuracy); }
+.mvbtn.cls-text-inaccuracy { color: var(--cls-inaccuracy); }
+.mark.inaccuracy { fill: var(--cls-inaccuracy); }
+.cls-mistake.chip { box-shadow: inset 3px 0 0 var(--cls-mistake); }
+.badge.cls-mistake { background: var(--cls-mistake); }
+.verdict.cls-border-mistake { border-left-color: var(--cls-mistake); }
+.mvbtn.cls-text-mistake { color: var(--cls-mistake); }
+.mark.mistake { fill: var(--cls-mistake); }
+.cls-miss.chip { box-shadow: inset 3px 0 0 var(--cls-miss); }
+.badge.cls-miss { background: var(--cls-miss); }
+.verdict.cls-border-miss { border-left-color: var(--cls-miss); }
+.mvbtn.cls-text-miss { color: var(--cls-miss); }
+.mark.miss { fill: var(--cls-miss); }
+.cls-blunder.chip { box-shadow: inset 3px 0 0 var(--cls-blunder); }
+.badge.cls-blunder { background: var(--cls-blunder); }
+.verdict.cls-border-blunder { border-left-color: var(--cls-blunder); }
+.mvbtn.cls-text-blunder { color: var(--cls-blunder); }
+.mark.blunder { fill: var(--cls-blunder); }

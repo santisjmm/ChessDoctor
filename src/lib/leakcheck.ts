@@ -73,7 +73,8 @@ export async function judgeMove(engine: Engine, line: string[], ply: number, lim
 }
 
 export async function cachedEval(engine: Engine, fen: string, limits: SearchLimits): Promise<EngineResult> {
-  const key = `${fen.split(' ').slice(0, 4).join(' ')}|${limits.depth}`;
+  const mpv = limits.multipv ?? 1;
+  const key = `${fen.split(' ').slice(0, 4).join(' ')}|${limits.depth}${mpv > 1 ? `|m${mpv}` : ''}`;
   try {
     const hit = await db.evals.get(key);
     if (hit) return hit.result;

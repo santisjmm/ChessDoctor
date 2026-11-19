@@ -1,6 +1,15 @@
 // Stockfish 19 lite (single-threaded WASM, GPLv3) running in a Web Worker, spoken to over UCI.
+export interface PvLine {
+  move: string; // UCI
+  cp: number; // White POV (mate mapped to ±10000 ∓ distance)
+  mate: number | null; // White POV
+  pv: string[];
+}
+
 export interface EngineResult {
   bestmove: string; // UCI
+  /** All MultiPV lines, best first (one unless multipv > 1). */
+  lines?: PvLine[];
   /** Centipawns from White's point of view (mate mapped to ±10000 ∓ distance). */
   cp: number;
   mate: number | null;
@@ -11,12 +20,14 @@ export interface EngineResult {
 export interface SearchLimits {
   depth: number;
   movetime: number; // ms cap, whichever comes first
+  multipv?: number;
 }
 
 export class Engine {
   private worker: Worker;
   private listeners = new Set<(line: string) => void>();
   private queue: Promise<unknown> = Promise.resolve();
+  private multipv = 1;
   readonly ready: Promise<void>;
 
   constructor(url = `${import.meta.env.BASE_URL}engine/stockfish-19-lite-single.js`) {
@@ -49,6 +60,11 @@ export class Engine {
   analyse(fen: string, limits: SearchLimits): Promise<EngineResult> {
     const run = async () => {
       await this.ready;
+      const mpv = limits.multipv ?? 1;
+      if (mpv !== this.multipv) {
+        this.worker.postMessage(`setoption name MultiPV value ${mpv}`);
+        this.multipv = mpv;
+      }
       this.worker.postMessage(`position fen ${fen}`);
       const lines = await this.until('bestmove', `go depth ${limits.depth} movetime ${limits.movetime}`);
       return parseSearch(lines, fen.split(' ')[1] === 'w');
@@ -64,9 +80,12 @@ export class Engine {
 }
 
 export function parseSearch(lines: string[], whiteToMove: boolean): EngineResult {
-  let last: EngineResult = { bestmove: '', cp: 0, mate: null, depth: 0, pv: [] };
+  const sign = whiteToMove ? 1 : -1;
+  const byPv = new Map<number, PvLine & { depth: number }>();
+  let bestmove = '';
   for (const line of lines) {
-    if (line.startsWith('info') && / pv /.test(line) && !/multipv [2-9]/.test(line)) {
+    if (line.startsWith('info') && / pv /.test(line) && / score /.test(line)) {
+      const k = Number(/ multipv (\d+)/.exec(line)?.[1] ?? 1);
       const depth = Number(/ depth (\d+)/.exec(line)?.[1] ?? 0);
       const cpM = / score cp (-?\d+)/.exec(line);
       const mateM = / score mate (-?\d+)/.exec(line);
@@ -77,12 +96,20 @@ export function parseSearch(lines: string[], whiteToMove: boolean): EngineResult
         mate = Number(mateM[1]);
         cp = mate > 0 ? 10000 - mate : -10000 - mate;
       }
-      const sign = whiteToMove ? 1 : -1;
-      last = { bestmove: pv[0], cp: cp * sign, mate: mate === null ? null : mate * sign, depth, pv };
+      byPv.set(k, { move: pv[0], cp: cp * sign, mate: mate === null ? null : mate * sign, pv, depth });
     }
-    if (line.startsWith('bestmove')) last.bestmove = line.split(' ')[1];
+    if (line.startsWith('bestmove')) bestmove = line.split(' ')[1];
   }
-  return last;
+  const sorted = [...byPv.entries()].sort((a, b) => a[0] - b[0]).map(([, l]) => l);
+  const top = sorted[0];
+  return {
+    bestmove: bestmove || top?.move || '',
+    cp: top?.cp ?? 0,
+    mate: top?.mate ?? null,
+    depth: top?.depth ?? 0,
+    pv: top?.pv ?? [],
+    lines: sorted.map(({ move, cp, mate, pv }) => ({ move, cp, mate, pv })),
+  };
 }
 
 /** Lichess win% formula: chance of winning for White from a centipawn score. */

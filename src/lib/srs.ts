@@ -41,7 +41,7 @@ export function streak(attemptTimes: number[], now = Date.now()): number {
  */
 export function todaysSession(items: DrillItem[], now = Date.now(), max = 8): DrillItem[] {
   const due = items.filter((i) => isDue(i, now));
-  const mistakes = due.filter((i) => i.kind === 'mistake').sort((a, b) => a.due - b.due || b.games - a.games);
+  const mistakes = due.filter((i) => i.kind !== 'line').sort((a, b) => a.due - b.due || b.games - a.games);
   const line = due.filter((i) => i.kind === 'line').sort((a, b) => b.games - a.games)[0];
   const out = mistakes.slice(0, line ? max - 1 : max);
   if (line) out.push(line);

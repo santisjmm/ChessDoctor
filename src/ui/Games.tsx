@@ -2,10 +2,11 @@ import { Chess } from 'chess.js';
 import type { Config } from 'chessground/config';
 import type { Key } from 'chessground/types';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { getEngine } from '../lib/analysis';
 import { db, type DrillItem, type GameReview } from '../lib/db';
-import { drillId } from '../lib/drills';
+import { drillId, positionDrill, positionDrillsFrom, upsertDrills } from '../lib/drills';
+import { FullReviewView } from './FullReviewView';
 import { evalWords } from '../lib/reason';
 import { classify, drops, reviewGame } from '../lib/review';
 import { OPENING_PLIES, plyColor, type GameOpening } from '../lib/openings';
@@ -71,6 +72,13 @@ function GameReviewView({ item, onBack, onDrill }: { item: GameOpening; onBack: 
   const [review, setReview] = useState<GameReview | null>(null);
   const [partial, setPartial] = useState<number[]>([]);
   const [ply, setPly] = useState(0); // positions 0..sans.length
+  const [tab, setTab] = useState<'opening' | 'full'>('opening');
+  const tabRef = useRef(tab);
+  tabRef.current = tab;
+  // Open on the whole-game review if this game already has one.
+  useEffect(() => {
+    db.fullReviews.get(game.id).then((r) => r && setTab('full')).catch(() => undefined);
+  }, [game.id]);
   useEffect(() => {
     let live = true;
     reviewGame(getEngine(), item, (_d, _t, cps) => live && setPartial(cps)).then((r) => {
@@ -85,6 +93,7 @@ function GameReviewView({ item, onBack, onDrill }: { item: GameOpening; onBack: 
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (tabRef.current !== 'opening') return;
       if (e.key === 'ArrowLeft') setPly((p) => Math.max(0, p - 1));
       else if (e.key === 'ArrowRight') setPly((p) => Math.min(sans.length, p + 1));
       else if (e.key === 'Home') setPly(0);
@@ -133,10 +142,23 @@ function GameReviewView({ item, onBack, onDrill }: { item: GameOpening; onBack: 
         <button className="link" onClick={onBack}>← Games</button>
         <a className="link" href={game.url} target="_blank" rel="noreferrer">Open game ↗</a>
       </header>
-      <div>
-        <h2 className="tight"><span className={cls}>{res}</span> vs {game.opponent}</h2>
-        <p className="hint">{item.opening?.name ?? 'Unknown opening'} · {game.color === 'w' ? 'White' : 'Black'} · {game.speed} · {fmtDate(game.playedAt)}</p>
+      <div className="row">
+        <div>
+          <h2 className="tight"><span className={cls}>{res}</span> vs {game.opponent}</h2>
+          <p className="hint">{item.opening?.name ?? 'Unknown opening'} · {game.color === 'w' ? 'White' : 'Black'} · {game.speed} · {fmtDate(game.playedAt)}</p>
+        </div>
+        <div className="seg" role="tablist" aria-label="Review">
+          <button role="tab" aria-selected={tab === 'opening'} onClick={() => setTab('opening')}>Opening</button>
+          <button role="tab" aria-selected={tab === 'full'} onClick={() => setTab('full')}>Whole game</button>
+        </div>
       </div>
+      {tab === 'full' ? (
+        <FullReviewView
+          item={item}
+          onReviewed={(r) => void upsertDrills(positionDrillsFrom(r, game.color, item.opening?.family ?? 'Middlegame'))}
+          onTrainMistake={(r, p) => onDrill(positionDrill(r, p, item.opening?.family ?? 'Middlegame'))}
+        />
+      ) : (
       <div className="split">
       <div className="split-main">
       <div className="mini-board"><Board config={config} /></div>
@@ -196,6 +218,7 @@ function GameReviewView({ item, onBack, onDrill }: { item: GameOpening; onBack: 
       <p className="hint">On a keyboard: ← → step through the moves, Home / End jump to the start / end.</p>
       </div>
       </div>
+      )}
     </main>
   );
 }

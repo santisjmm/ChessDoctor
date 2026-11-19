@@ -1,5 +1,6 @@
 import Dexie, { type EntityTable } from 'dexie';
 import type { EngineResult } from './engine';
+import type { FullReview } from './gr/fullreview';
 import type { Game, Site } from './types';
 
 export interface Profile {
@@ -13,7 +14,7 @@ export interface Profile {
 /** A line to drill, scheduled with spaced repetition (see srs.ts). */
 export interface DrillItem {
   id: string; // `${color}|${line.join(' ')}`
-  kind: 'mistake' | 'line';
+  kind: 'mistake' | 'line' | 'position';
   color: 'w' | 'b';
   family: string;
   opening?: string; // full opening name at the end of book
@@ -23,6 +24,11 @@ export interface DrillItem {
   played?: string; // the user's usual (wrong) move at focusPly
   reason?: string; // one sentence on why the right move is better
   games: number; // how many of the user's games reached it
+  /** 'position' puzzles: find a good move in this position (from a reviewed game). */
+  fen?: string;
+  accept?: string[]; // UCI moves within 2% win chance of the best
+  best?: string; // engine's best move (UCI)
+  gameId?: string;
   createdAt: number;
   box: number; // Leitner box 0..5
   due: number; // ms epoch
@@ -72,6 +78,7 @@ export const db = new Dexie('opening-trainer') as Dexie & {
   attempts: EntityTable<Attempt, 'id'>;
   openings: EntityTable<CachedOpening, 'id'>;
   reviews: EntityTable<GameReview, 'id'>;
+  fullReviews: EntityTable<FullReview, 'id'>;
 };
 
 db.version(1).stores({
@@ -87,6 +94,7 @@ db.version(3).stores({
   openings: 'id',
 });
 db.version(4).stores({ reviews: 'id, playedAt' });
+db.version(5).stores({ fullReviews: 'id' });
 
 export async function latestGames(site: Site, user: string, n: number): Promise<Game[]> {
   return db.games

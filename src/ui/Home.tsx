@@ -59,8 +59,8 @@ export function Home({
             <ul className="today-list">
               {session.slice(0, 4).map((d) => (
                 <li key={d.id}>
-                  <span className={d.kind === 'mistake' ? 'dot red' : 'dot grey'} /> {d.family} · {d.color === 'w' ? 'White' : 'Black'}
-                  {d.kind === 'mistake' && d.played ? ` · not ${Math.floor(d.focusPly / 2) + 1}${d.focusPly % 2 === 0 ? '.' : '...'}${d.played}` : ''}
+                  <span className={d.kind === 'line' ? 'dot grey' : 'dot red'} /> {d.family} · {d.color === 'w' ? 'White' : 'Black'}
+                  {d.kind !== 'line' && d.played ? ` · not ${Math.floor(d.focusPly / 2) + 1}${d.focusPly % 2 === 0 ? '.' : '...'}${d.played}` : ''}
                 </li>
               ))}
               {session.length > 4 && <li className="muted">and {session.length - 4} more</li>}
@@ -98,7 +98,7 @@ export function Home({
       )}
 
       <section className="stats-row">
-        <div><b>{drills.filter((d) => d.kind === 'mistake').length}</b><span>mistakes found</span></div>
+        <div><b>{drills.filter((d) => d.kind !== 'line').length}</b><span>mistakes found</span></div>
         <div><b>{mastered}</b><span>lines mastered</span></div>
         <div><b>{result?.items.length ?? '–'}</b><span>games</span></div>
       </section>

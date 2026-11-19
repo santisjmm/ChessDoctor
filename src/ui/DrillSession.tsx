@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import type { DrillItem } from '../lib/db';
 import { recordAttempt } from '../lib/drills';
 import { LineDrill } from './LineDrill';
+import { PositionDrill } from './PositionDrill';
 
 /** Runs a list of drills one after another and records each result. */
 export function DrillSession({ items, onExit }: { items: DrillItem[]; onExit: () => void }) {
@@ -33,18 +34,17 @@ export function DrillSession({ items, onExit }: { items: DrillItem[]; onExit: ()
         <button className="link" onClick={onExit}>✕ Stop</button>
         <span className="muted">{i + 1} / {items.length}</span>
       </header>
-      <LineDrill
-        key={item.id + i}
-        item={item}
-        onFinish={finish}
-        aside={
+      {(() => {
+        const aside = (
           <div>
-            <p className="eyebrow tight">{item.kind === 'mistake' ? 'Fix a mistake' : 'Your main line'} · {item.color === 'w' ? 'White' : 'Black'}</p>
+            <p className="eyebrow tight">{item.kind === 'position' ? 'My mistakes' : item.kind === 'mistake' ? 'Fix a mistake' : 'Your main line'} · {item.color === 'w' ? 'White' : 'Black'}</p>
             <h2 className="tight">{item.family}</h2>
             {item.kind === 'mistake' && item.played && <p className="hint">You played the wrong move here in {item.games} games.</p>}
           </div>
-        }
-      >
+        );
+        const Drill = item.kind === 'position' ? PositionDrill : LineDrill;
+        return (
+          <Drill key={item.id + i} item={item} onFinish={finish} aside={aside}>
       {done !== null && (
         <button
           className="primary"
@@ -56,7 +56,9 @@ export function DrillSession({ items, onExit }: { items: DrillItem[]; onExit: ()
           {i + 1 < items.length ? 'Next line' : 'Finish'}
         </button>
       )}
-      </LineDrill>
+          </Drill>
+        );
+      })()}
     </main>
   );
 }

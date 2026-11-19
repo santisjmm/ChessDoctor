@@ -1,4 +1,8 @@
+import { Chess } from 'chess.js';
 import { db, type DrillItem } from './db';
+import { explain } from './gr/explain';
+import type { FullReview } from './gr/fullreview';
+import { winPctFor } from './gr/winprob';
 import { LEAK_DROP, type MoveVerdict } from './leakcheck';
 import type { GameOpening } from './openings';
 import { plyColor } from './openings';
@@ -76,4 +80,38 @@ export async function recordAttempt(item: DrillItem, misses: number) {
     await db.attempts.add({ itemId: item.id, at, success, misses });
     await db.drills.put(schedule(item, success, at));
   });
+}
+
+// --- Puzzles from fully reviewed games ("My mistakes") ------------------------------------
+
+/** Moves within 2% win chance of the best count as solving a position puzzle. */
+export const PUZZLE_ACCEPT_DROP = 2;
+
+export function positionDrill(review: FullReview, ply: number, family: string, now = Date.now()): DrillItem {
+  const fen = review.fens[ply];
+  const lines = review.positions[ply].lines;
+  const color = review.plies[ply].color;
+  const best = lines[0];
+  const winBest = winPctFor(best.eval, color);
+  const accept = lines.filter((l) => winBest - winPctFor(l.eval, color) <= PUZZLE_ACCEPT_DROP).map((l) => l.move);
+  const played = review.sans[ply];
+  const m = new Chess(fen).move(played);
+  const uci = m.from + m.to + (m.promotion ?? '');
+  const why = explain({
+    fenBefore: fen, uci, classification: review.plies[ply].classification, reasons: review.plies[ply].reasons,
+    best: { move: best.move, pv: best.pv, eval: best.eval }, replyPv: review.positions[ply + 1]?.lines[0]?.pv ?? [], evalAfter: review.evals[ply + 1],
+  });
+  return {
+    id: `p|${fen.split(' ').slice(0, 4).join(' ')}`, kind: 'position', color, family, line: [], focusPly: ply, played,
+    reason: why.detail, games: 1, fen, accept, best: best.move, gameId: review.id,
+    createdAt: now, box: 0, due: now, reps: 0, lapses: 0,
+  };
+}
+
+/** Every mistake, blunder and miss by `color` in a reviewed game, as puzzles. */
+export function positionDrillsFrom(review: FullReview, color: 'w' | 'b', family: string): DrillItem[] {
+  return review.plies
+    .map((p, i) => ({ p, i }))
+    .filter(({ p, i }) => p.color === color && ['mistake', 'blunder', 'miss'].includes(p.classification) && review.positions[i].lines.length > 0)
+    .map(({ i }) => positionDrill(review, i, family));
 }

@@ -9,6 +9,11 @@ export function About({ onBack }: { onBack: () => void }) {
         {APP_NAME} runs entirely in your browser. Your games are fetched from the public Lichess and Chess.com APIs, analysed on this device and stored in
         its local database. Nothing is sent to our servers.
       </p>
+      <h2>Privacy</h2>
+      <p>
+        No account, no cookies, no ads. We count visits with Cloudflare Web Analytics, which is cookieless and does not track you across sites. Your
+        usernames, games and training stay on this device; you can delete them by clearing this site’s data in your browser.
+      </p>
       <h2>Licence</h2>
       <p>
         {APP_NAME} is free software under the <a href="https://www.gnu.org/licenses/gpl-3.0.html">GNU GPL v3 or later</a>. Source code: <a href={SOURCE_URL}>{SOURCE_URL}</a>.

@@ -5,3 +5,4 @@ public/engine/
 shots/
 *.local
 *.tsbuildinfo
+PROMPT.md

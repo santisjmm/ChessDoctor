@@ -46,6 +46,18 @@ PLAYWRIGHT_BROWSERS_PATH=.tools/pw LICHESS=<user> node scripts/screenshots.mjs  
 
 Branding lives in `src/config.ts` (name, URL) and the PWA manifest in `vite.config.ts`. The IndexedDB database keeps its original internal name `opening-trainer` so data already on devices survives.
 
+## Deploy
+
+Live at **https://chessdoctor.app** (Cloudflare Pages project `chessdoctor`, classic Pages,
+direct upload; `public/_headers` sets the CSP and caching). Deploy with a Cloudflare API token
+scoped to Pages: Edit (account) in `CLOUDFLARE_API_TOKEN` and the account in `CLOUDFLARE_ACCOUNT_ID`:
+
+```sh
+npm run deploy
+```
+
+Check a deploy end to end: `PLAYWRIGHT_BROWSERS_PATH=.tools/pw CHESSCOM=<user> node scripts/screenshots.mjs https://chessdoctor.app/`
+
 ## Licence
 
 GPL-3.0-or-later (see `LICENSE`). Stockfish is GPLv3, and shipping its WASM to browsers is

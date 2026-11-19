@@ -31,12 +31,13 @@ await shot(page, '3-report');
 
 // Save the card PNGs exactly as the app exports them.
 const savePng = async (name) => {
-  const b64 = await page.$eval('.card-preview img', async (img) => {
-    const blob = await (await fetch(img.src)).blob();
-    const buf = new Uint8Array(await blob.arrayBuffer());
-    let s = '';
-    for (const x of buf) s += String.fromCharCode(x);
-    return btoa(s);
+  // Copy through a canvas: the production CSP (rightly) forbids fetch() of blob: URLs.
+  const b64 = await page.$eval('.card-preview img', (img) => {
+    const c = document.createElement('canvas');
+    c.width = img.naturalWidth;
+    c.height = img.naturalHeight;
+    c.getContext('2d').drawImage(img, 0, 0);
+    return c.toDataURL('image/png').split(',')[1];
   });
   writeFileSync(new URL(`${name}.png`, out), Buffer.from(b64, 'base64'));
 };

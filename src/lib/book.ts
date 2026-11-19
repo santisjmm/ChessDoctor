@@ -42,6 +42,11 @@ export class Book {
     return key in this.data.pos;
   }
 
+  /** Every named line's [eco, name], by index (as in book-lines.json). */
+  get names(): [string, string][] {
+    return this.data.names;
+  }
+
   name(key: string): OpeningName | null {
     const i = this.data.pos[key];
     if (i === undefined || i < 0) return null;

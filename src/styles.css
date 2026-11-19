@@ -369,3 +369,9 @@ button.chip { cursor: pointer; }
 .verdict.cls-border-blunder { border-left-color: var(--cls-blunder); }
 .mvbtn.cls-text-blunder { color: var(--cls-blunder); }
 .mark.blunder { fill: var(--cls-blunder); }
+
+/* Learn mode */
+.seg-wide { align-self: flex-start; }
+.learn-row { grid-template-columns: minmax(0, 1fr) auto 52px; }
+.learn-row .mv { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.search { width: 100%; margin-bottom: 8px; }

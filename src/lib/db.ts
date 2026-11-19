@@ -70,6 +70,16 @@ export interface GameReview {
 }
 
 // Internal name kept from the working title: renaming it would orphan data already on devices.
+/** Learn mode: a book line learned (finished without a mistake) with one colour. */
+export interface BookProgress {
+  id: string; // `${color}|${lineIndex}`
+  color: 'w' | 'b';
+  line: number;
+  learned: boolean;
+  tries: number;
+  lastAt: number;
+}
+
 export const db = new Dexie('opening-trainer') as Dexie & {
   games: EntityTable<Game, 'id'>;
   profiles: EntityTable<Profile, 'key'>;
@@ -79,6 +89,7 @@ export const db = new Dexie('opening-trainer') as Dexie & {
   openings: EntityTable<CachedOpening, 'id'>;
   reviews: EntityTable<GameReview, 'id'>;
   fullReviews: EntityTable<FullReview, 'id'>;
+  bookProgress: EntityTable<BookProgress, 'id'>;
 };
 
 db.version(1).stores({
@@ -95,6 +106,7 @@ db.version(3).stores({
 });
 db.version(4).stores({ reviews: 'id, playedAt' });
 db.version(5).stores({ fullReviews: 'id' });
+db.version(6).stores({ bookProgress: 'id, color' });
 
 export async function latestGames(site: Site, user: string, n: number): Promise<Game[]> {
   return db.games

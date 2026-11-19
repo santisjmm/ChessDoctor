@@ -1,7 +1,7 @@
 import { Chess } from 'chess.js';
 import type { Config } from 'chessground/config';
 import type { Key } from 'chessground/types';
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { analysis } from '../lib/analysis';
 import { pct, signedPct } from '../lib/card';
 import type { DrillItem } from '../lib/db';
@@ -12,6 +12,7 @@ import { score } from '../lib/report';
 import { buildTree, findNode, tone, type TreeNode } from '../lib/tree';
 import type { Color } from '../lib/types';
 import { Board } from './Board';
+import { Learn } from './Learn';
 
 const label = (ply: number, san: string) => `${Math.floor(ply / 2) + 1}${ply % 2 === 0 ? '.' : '...'}${san}`;
 const fmtDate = (t: number) => new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -23,12 +24,15 @@ function gameLink(it: GameOpening, ply: number) {
 export function Openings({ items, onDrill }: { items: GameOpening[]; onDrill: (item: DrillItem) => void }) {
   const [color, setColor] = useState<Color>(() => (sessionStorage.getItem('tree-color') as Color) || 'w');
   const [line, setLine] = useState<string[]>([]);
+  const [mode, setMode] = useState<'mine' | 'learn'>('mine');
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
   const { verdicts, done, total, running } = useSyncExternalStore(analysis.subscribe, analysis.getSnapshot);
   const root = useMemo(() => buildTree(items, color), [items, color]);
   // ← / Backspace: back one move.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement) return;
+      if (e.target instanceof HTMLInputElement || modeRef.current !== 'mine') return;
       if (e.key === 'ArrowLeft' || e.key === 'Backspace') setLine((l) => l.slice(0, -1));
       if (e.key === 'Home') setLine([]);
     };
@@ -90,6 +94,14 @@ export function Openings({ items, onDrill }: { items: GameOpening[]; onDrill: (i
           <button role="tab" aria-selected={color === 'b'} onClick={() => switchColor('b')}>Black</button>
         </div>
       </header>
+      <div className="seg seg-wide" role="tablist" aria-label="Openings">
+        <button role="tab" aria-selected={mode === 'mine'} onClick={() => setMode('mine')}>My games</button>
+        <button role="tab" aria-selected={mode === 'learn'} onClick={() => setMode('learn')}>Learn from the book</button>
+      </div>
+      {mode === 'learn' ? (
+        <Learn items={items} color={color} />
+      ) : (
+      <>
       <p className="hint">
         {root.n} games as {color === 'w' ? 'White' : 'Black'}, you score {pct(baseline)}.{' '}
         {running ? `Engine checking your moves: ${done}/${total}.` : total ? `Engine checked your ${total} most-played moves.` : ''}
@@ -182,6 +194,8 @@ export function Openings({ items, onDrill }: { items: GameOpening[]; onDrill: (i
       <p className="hint">Green: you score at least 5 points above your average here. Red: 5 below, or the engine found a better move. Grey tag: most games leave the opening book with this move. On a keyboard, ← goes back one move.</p>
       </div>
       </div>
+      </>
+      )}
     </main>
   );
 }

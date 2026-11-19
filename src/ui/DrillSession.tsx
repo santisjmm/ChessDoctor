@@ -33,12 +33,18 @@ export function DrillSession({ items, onExit }: { items: DrillItem[]; onExit: ()
         <button className="link" onClick={onExit}>✕ Stop</button>
         <span className="muted">{i + 1} / {items.length}</span>
       </header>
-      <div>
-        <p className="eyebrow tight">{item.kind === 'mistake' ? 'Fix a mistake' : 'Your main line'} · {item.color === 'w' ? 'White' : 'Black'}</p>
-        <h2 className="tight">{item.family}</h2>
-        {item.kind === 'mistake' && item.played && <p className="hint">You played the wrong move here in {item.games} games.</p>}
-      </div>
-      <LineDrill key={item.id + i} item={item} onFinish={finish} />
+      <LineDrill
+        key={item.id + i}
+        item={item}
+        onFinish={finish}
+        aside={
+          <div>
+            <p className="eyebrow tight">{item.kind === 'mistake' ? 'Fix a mistake' : 'Your main line'} · {item.color === 'w' ? 'White' : 'Black'}</p>
+            <h2 className="tight">{item.family}</h2>
+            {item.kind === 'mistake' && item.played && <p className="hint">You played the wrong move here in {item.games} games.</p>}
+          </div>
+        }
+      >
       {done !== null && (
         <button
           className="primary"
@@ -50,6 +56,7 @@ export function DrillSession({ items, onExit }: { items: DrillItem[]; onExit: ()
           {i + 1 < items.length ? 'Next line' : 'Finish'}
         </button>
       )}
+      </LineDrill>
     </main>
   );
 }

@@ -1,7 +1,7 @@
 import { Chess, type Square } from 'chess.js';
 import type { Config } from 'chessground/config';
 import type { Key } from 'chessground/types';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { DrillItem } from '../lib/db';
 import { plyColor } from '../lib/openings';
 import { Board } from './Board';
@@ -12,7 +12,9 @@ const label = (ply: number, san: string) => `${Math.floor(ply / 2) + 1}${ply % 2
  * Play your side of a line from memory. The opponent's moves play themselves. A wrong move
  * snaps back, shows the right one and says why. Calls onFinish with the number of slips.
  */
-export function LineDrill({ item, onFinish }: { item: DrillItem; onFinish: (misses: number) => void }) {
+export function LineDrill({
+  item, onFinish, aside, children,
+}: { item: DrillItem; onFinish: (misses: number) => void; aside?: ReactNode; children?: ReactNode }) {
   const { line, color } = item;
   const [ply, setPly] = useState(0);
   const [misses, setMisses] = useState(0);
@@ -107,8 +109,12 @@ export function LineDrill({ item, onFinish }: { item: DrillItem; onFinish: (miss
   };
 
   return (
-    <div className="drill">
-      <Board config={config} />
+    <div className="drill split">
+      <div className="split-main">
+        <Board config={config} />
+      </div>
+      <div className="split-side">
+      {aside}
       <p className={`feedback ${feedback?.kind ?? ''}`} aria-live="polite">
         {feedback?.text ?? (myTurn ? (ply === item.focusPly ? 'Your move. This is the one you usually get wrong.' : 'Your move.') : '…')}
       </p>
@@ -120,6 +126,8 @@ export function LineDrill({ item, onFinish }: { item: DrillItem; onFinish: (miss
           </span>
         ))}
       </p>
+      {children}
+      </div>
     </div>
   );
 }

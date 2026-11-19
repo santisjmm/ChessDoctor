@@ -1,4 +1,6 @@
 export type Tab = 'home' | 'openings' | 'games' | 'progress' | 'report';
+import { APP_NAME } from '../config';
+
 export function TabBar({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) {
   const items: [Tab, string, string][] = [
     ['home', 'Today', 'M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z'],
@@ -9,6 +11,7 @@ export function TabBar({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) {
   ];
   return (
     <nav className="tabbar" aria-label="Sections">
+      <span className="brand">{APP_NAME}</span>
       {items.map(([t, name, d]) => (
         <button key={t} aria-current={tab === t ? 'page' : undefined} onClick={() => onTab(t)}>
           <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden><path d={d} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" /></svg>

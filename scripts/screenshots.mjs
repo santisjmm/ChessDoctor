@@ -4,12 +4,18 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { chromium, devices } from 'playwright';
 
 const base = process.argv[2] ?? 'http://localhost:4173/';
-const out = new URL('../shots/', import.meta.url);
+const out = new URL(`../shots/${process.env.VIEWPORT ?? 'phone'}/`, import.meta.url);
 mkdirSync(out, { recursive: true });
 const shot = (page, name) => page.screenshot({ path: new URL(`${name}.png`, out).pathname, fullPage: true });
 
 const browser = await chromium.launch();
-const ctx = await browser.newContext({ ...devices['Pixel 7'], colorScheme: 'dark' });
+// VIEWPORT=phone (default) | tablet | desktop
+const VIEWPORTS = {
+  phone: devices['Pixel 7'],
+  tablet: devices['iPad Mini'],
+  desktop: { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 },
+};
+const ctx = await browser.newContext({ ...VIEWPORTS[process.env.VIEWPORT ?? 'phone'], colorScheme: 'dark' });
 const page = await ctx.newPage();
 const logs = [];
 page.on('console', (m) => m.type() === 'error' && logs.push(m.text()));

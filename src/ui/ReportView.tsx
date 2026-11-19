@@ -48,6 +48,8 @@ export function ReportView({
         </div>
       </header>
 
+      <div className="split">
+      <div className="split-main">
       <div className={`card-preview ${format}`}>{png ? <img src={png.url} alt="Your opening report card" /> : <div className="card-skeleton" />}</div>
 
       <div className="actions">
@@ -80,6 +82,8 @@ export function ReportView({
         Copy link to this card
       </button>
       {msg && <p className="hint center">{msg}</p>}
+      </div>
+      <div className="split-side">
 
       {shared && (
         <section className="cta">
@@ -140,6 +144,8 @@ export function ReportView({
         </p>
       </section>
       <button className="link" onClick={onAbout}>About &amp; licences</button>
+      </div>
+      </div>
     </main>
   );
 }

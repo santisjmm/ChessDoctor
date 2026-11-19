@@ -25,6 +25,16 @@ export function Openings({ items, onDrill }: { items: GameOpening[]; onDrill: (i
   const [line, setLine] = useState<string[]>([]);
   const { verdicts, done, total, running } = useSyncExternalStore(analysis.subscribe, analysis.getSnapshot);
   const root = useMemo(() => buildTree(items, color), [items, color]);
+  // ← / Backspace: back one move.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement) return;
+      if (e.key === 'ArrowLeft' || e.key === 'Backspace') setLine((l) => l.slice(0, -1));
+      if (e.key === 'Home') setLine([]);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   // Test hook for the headless screenshot run: jump to a line.
   useEffect(() => {
     (window as unknown as Record<string, unknown>).__openLine = (c: Color, l: string[]) => {
@@ -84,7 +94,8 @@ export function Openings({ items, onDrill }: { items: GameOpening[]; onDrill: (i
         {root.n} games as {color === 'w' ? 'White' : 'Black'}, you score {pct(baseline)}.{' '}
         {running ? `Engine checking your moves: ${done}/${total}.` : total ? `Engine checked your ${total} most-played moves.` : ''}
       </p>
-      <div className="explorer">
+      <div className="split">
+      <div className="explorer split-main">
         <div className="mini-board"><Board config={boardConfig} /></div>
         <div className="crumbs">
           <button className={line.length ? 'crumb' : 'crumb on'} onClick={() => setLine([])}>Start</button>
@@ -96,6 +107,7 @@ export function Openings({ items, onDrill }: { items: GameOpening[]; onDrill: (i
         </div>
         {node.opening && <p className="opening-name">{node.opening}</p>}
       </div>
+      <div className="split-side">
 
       {here && node !== root && (
         <section className="mistake-panel">
@@ -167,7 +179,9 @@ export function Openings({ items, onDrill }: { items: GameOpening[]; onDrill: (i
       ) : (
         <p className="hint">No more games past this move.</p>
       )}
-      <p className="hint">Green: you score at least 5 points above your average here. Red: 5 below, or the engine found a better move. Grey tag: most games leave the opening book with this move.</p>
+      <p className="hint">Green: you score at least 5 points above your average here. Red: 5 below, or the engine found a better move. Grey tag: most games leave the opening book with this move. On a keyboard, ← goes back one move.</p>
+      </div>
+      </div>
     </main>
   );
 }

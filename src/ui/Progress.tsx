@@ -36,6 +36,8 @@ export function Progress({ items }: { items: GameOpening[] }) {
     <main className="screen progress">
       <h1 className="tight">Progress</h1>
 
+      <div className="cols">
+      <div>
       <section className="hero">
         <p className="eyebrow tight">Opening accuracy, last {Math.min(10, recent.length)} reviewed games</p>
         <p className="hero-num">{last10 != null ? `${Math.round(last10)}%` : '–'}</p>
@@ -63,6 +65,8 @@ export function Progress({ items }: { items: GameOpening[] }) {
         <div><b>{fixed}</b><span>mistakes fixed</span></div>
       </section>
 
+      </div>
+      <div>
       <section>
         <h2>Lines by stage</h2>
         <ul className="boxes">
@@ -98,6 +102,8 @@ export function Progress({ items }: { items: GameOpening[] }) {
           {!fixes.length && <li className="muted">No mistakes found yet.</li>}
         </ul>
       </section>
+      </div>
+      </div>
     </main>
   );
 }

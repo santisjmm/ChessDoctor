@@ -46,6 +46,8 @@ export function Home({
         </span>
       </header>
 
+      <div className="cols">
+      <div>
       <section className="today">
         <p className="eyebrow tight">Today’s training · about 10 minutes</p>
         {session.length ? (
@@ -101,6 +103,8 @@ export function Home({
         <div><b>{result?.items.length ?? '–'}</b><span>games</span></div>
       </section>
 
+      </div>
+      <div>
       {result?.report.leak && (
         <button className="leak-link" onClick={onCard}>
           <span className="muted">Your leak</span>
@@ -119,6 +123,8 @@ export function Home({
           <button className="link" onClick={onChangeAccounts}>Change usernames</button>
         </div>
       </section>
+      </div>
+      </div>
     </main>
   );
 }

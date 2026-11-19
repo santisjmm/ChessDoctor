@@ -83,6 +83,19 @@ function GameReviewView({ item, onBack, onDrill }: { item: GameOpening; onBack: 
     };
   }, [item]);
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') setPly((p) => Math.max(0, p - 1));
+      else if (e.key === 'ArrowRight') setPly((p) => Math.min(sans.length, p + 1));
+      else if (e.key === 'Home') setPly(0);
+      else if (e.key === 'End') setPly(sans.length);
+      else return;
+      e.preventDefault();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [sans.length]);
+
   const cps: (number | null)[] = review?.cps ?? [...partial, ...Array(sans.length + 1 - partial.length).fill(null)];
   const d = review ? drops(review.cps, game.color) : [];
   const marks = d
@@ -124,6 +137,8 @@ function GameReviewView({ item, onBack, onDrill }: { item: GameOpening; onBack: 
         <h2 className="tight"><span className={cls}>{res}</span> vs {game.opponent}</h2>
         <p className="hint">{item.opening?.name ?? 'Unknown opening'} · {game.color === 'w' ? 'White' : 'Black'} · {game.speed} · {fmtDate(game.playedAt)}</p>
       </div>
+      <div className="split">
+      <div className="split-main">
       <div className="mini-board"><Board config={config} /></div>
       <EvalGraph cps={cps} marks={marks} current={ply} onSelect={setPly} />
       <div className="row nav-row">
@@ -136,6 +151,8 @@ function GameReviewView({ item, onBack, onDrill }: { item: GameOpening; onBack: 
         <button className="secondary small" onClick={() => setPly((p) => Math.min(sans.length, p + 1))} aria-label="Forward">▶</button>
         <button className="secondary small" onClick={() => setPly(sans.length)} aria-label="End">⏭</button>
       </div>
+      </div>
+      <div className="split-side">
       {!review && <p className="hint">Analysing the opening on this device… {partial.length}/{sans.length + 1}</p>}
       {review && (
         <section className={`verdict ${fm ? 'has-mistake' : ''}`}>
@@ -176,6 +193,9 @@ function GameReviewView({ item, onBack, onDrill }: { item: GameOpening; onBack: 
           );
         })}
       </p>
+      <p className="hint">On a keyboard: ← → step through the moves, Home / End jump to the start / end.</p>
+      </div>
+      </div>
     </main>
   );
 }

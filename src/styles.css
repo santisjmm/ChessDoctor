@@ -246,3 +246,64 @@ button { font: inherit; cursor: pointer; }
 
 .wordmark { font-weight: 800; font-size: 20px; letter-spacing: -0.01em; margin-top: 16px; }
 .center-self { align-self: center; }
+
+/* --- Responsive layout ------------------------------------------------------------------
+   Phone (< 768px): one column, bottom tab bar (the base styles above).
+   Tablet (768-1023px): a wider single column.
+   Desktop (>= 1024px): sidebar navigation; board screens split into board | panel. */
+.split { display: flex; flex-direction: column; gap: 16px; }
+.split-main, .split-side { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.brand { display: none; }
+.cols { display: flex; flex-direction: column; gap: 16px; }
+.cols > div { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+@media (hover: hover) {
+  .primary:not(:disabled):hover { filter: brightness(1.07); }
+  .secondary:not(:disabled):hover, .crumb:hover, .mvbtn:hover { background: var(--surface-2); }
+  .move-row:hover, .game-row:hover, .leak-link:hover { background: var(--surface-2); }
+  .link:hover { color: var(--text); }
+  .tabbar button:hover { color: var(--text); }
+}
+
+@media (min-width: 768px) {
+  .app { max-width: 760px; padding-left: 24px; padding-right: 24px; }
+  h1 { font-size: 34px; }
+  .game-list { grid-template-columns: 1fr 1fr; }
+  .mini-board { width: min(100%, 380px); }
+}
+
+@media (min-width: 1024px) {
+  .app { max-width: 1240px; padding: 32px 32px 48px; }
+  .app.with-tabs { display: grid; grid-template-columns: 200px minmax(0, 1fr); column-gap: 40px; padding-bottom: 48px; }
+  .app.with-tabs > main { grid-column: 2; grid-row: 1; }
+  .tabbar {
+    grid-column: 1; grid-row: 1; position: sticky; top: 32px; align-self: start; flex-direction: column; justify-content: flex-start;
+    gap: 2px; background: none; backdrop-filter: none; border: 0; padding: 0;
+  }
+  .tabbar .brand { display: block; font-weight: 800; font-size: 20px; padding: 4px 14px 18px; color: var(--text); }
+  .tabbar button { flex: none; max-width: none; flex-direction: row; justify-content: flex-start; gap: 12px; padding: 10px 14px; }
+  .tabbar button span { font-size: 15px; }
+  .tabbar button[aria-current='page'] { background: var(--surface); color: var(--text); }
+  .tabbar button[aria-current='page'] svg { color: var(--accent); }
+
+  /* Screens without navigation (start, drill, about, shared) stay centred. */
+  .app:not(.with-tabs) > .screen { max-width: 1100px; margin: 0 auto; }
+  .app:not(.with-tabs) > .screen.start, .app:not(.with-tabs) > .screen.about, .app:not(.with-tabs) > .screen.working,
+  .app:not(.with-tabs) > .screen.drill-end { max-width: 560px; }
+
+  .split { display: grid; grid-template-columns: minmax(340px, 540px) minmax(0, 1fr); gap: 36px; align-items: start; }
+  .split-main { position: sticky; top: 32px; }
+  /* Keep the board inside the window height. */
+  .split-main .board, .split-main .mini-board { width: min(100%, calc(100vh - 220px)); max-width: 540px; margin: 0; }
+  .split-main .card-preview { max-width: 540px; }
+  .cols { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+  .game-list { grid-template-columns: 1fr 1fr; }
+  h1 { font-size: 36px; }
+}
+@media (min-width: 1400px) {
+  .game-list { grid-template-columns: 1fr 1fr 1fr; }
+}
+@media (min-width: 1024px) {
+  /* The review also shows the eval graph and controls under the board. */
+  .review .split-main .mini-board { width: min(100%, calc(100vh - 330px)); }
+}

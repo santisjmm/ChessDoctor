@@ -127,3 +127,60 @@ export function EvalGraph({
     </div>
   );
 }
+
+export interface Series {
+  name: string;
+  color: string; // CSS colour (token)
+  kind: 'line' | 'dots' | 'step';
+  points: { x: number; y: number; tip?: string; onClick?: () => void }[];
+}
+
+/** Time-series chart: lines, steps and dots sharing one y-axis, with legend and hover tooltip. */
+export function SeriesChart({ series, yFormat, height = 220, yStep = 10, yClamp }: { series: Series[]; yFormat: (v: number) => string; height?: number; yStep?: number; yClamp?: [number, number] }) {
+  const [ref, w] = useWidth<HTMLDivElement>();
+  const [hover, setHover] = useState<{ x: number; y: number; tip: string } | null>(null);
+  const all = series.flatMap((s) => s.points);
+  if (all.length < 2) return <p className="muted" style={{ fontSize: 13 }}>Not enough data yet.</p>;
+  const padL = 44, padR = 12, padT = 10, padB = 24, h = height;
+  const xs = all.map((p) => p.x), ys = all.map((p) => p.y);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs);
+  let lo = Math.floor(Math.min(...ys) / yStep) * yStep, hi = Math.ceil(Math.max(...ys) / yStep) * yStep;
+  if (yClamp) { lo = Math.max(yClamp[0], lo); hi = Math.min(yClamp[1], hi); }
+  if (hi === lo) hi = lo + yStep;
+  const X = (x: number) => padL + ((x - x0) / Math.max(1, x1 - x0)) * (w - padL - padR);
+  const Y = (y: number) => padT + ((hi - y) / (hi - lo)) * (h - padT - padB);
+  const ticks = [0, 1, 2, 3, 4].map((k) => lo + ((hi - lo) * k) / 4);
+  const days = (x1 - x0) / 86_400_000;
+  const fmtX = (x: number) => new Date(x).toLocaleDateString('en-GB', days > 400 ? { month: 'short', year: '2-digit' } : { day: 'numeric', month: 'short' });
+  const nTicks = x1 === x0 ? 1 : Math.max(2, Math.min(6, Math.floor((w - padL) / 90)));
+  const xTicks = nTicks === 1 ? [x0] : Array.from({ length: nTicks }, (_, k) => x0 + ((x1 - x0) * k) / (nTicks - 1));
+  return (
+    <div className="series-chart" ref={ref} style={{ position: 'relative' }}>
+      {series.length > 1 && (
+        <div className="legend">
+          {series.map((s) => <span key={s.name}><i className={s.kind === 'dots' ? 'dot' : ''} style={{ background: s.color }} /> {s.name}</span>)}
+        </div>
+      )}
+      <svg width={w} height={h} role="img" aria-label={series.map((s) => s.name).join(', ')} onPointerLeave={() => setHover(null)}>
+        {ticks.map((t) => (
+          <g key={t}>
+            <line x1={padL} x2={w - padR} y1={Y(t)} y2={Y(t)} stroke="var(--grid)" />
+            <text x={padL - 6} y={Y(t) + 4} className="axis" textAnchor="end">{yFormat(t)}</text>
+          </g>
+        ))}
+        {xTicks.map((t, i) => <text key={i} x={X(t)} y={h - 6} className="axis" textAnchor={xTicks.length === 1 ? 'start' : i === 0 ? 'start' : i === xTicks.length - 1 ? 'end' : 'middle'}>{fmtX(t)}</text>)}
+        {series.map((s) => {
+          if (s.kind === 'dots')
+            return s.points.map((p, i) => (
+              <circle key={`${s.name}${i}`} cx={X(p.x)} cy={Y(p.y)} r={4} fill={s.color} opacity={0.85} style={{ cursor: p.onClick ? 'pointer' : undefined }}
+                onPointerEnter={() => setHover({ x: X(p.x), y: Y(p.y), tip: p.tip ?? yFormat(p.y) })} onClick={p.onClick} />
+            ));
+          const pts = [...s.points].sort((a, b) => a.x - b.x);
+          const d = pts.map((p, i) => (s.kind === 'step' && i > 0 ? `H${X(p.x).toFixed(1)}V${Y(p.y).toFixed(1)}` : `${i ? 'L' : 'M'}${X(p.x).toFixed(1)},${Y(p.y).toFixed(1)}`)).join('');
+          return <path key={s.name} d={d} fill="none" stroke={s.color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />;
+        })}
+      </svg>
+      {hover && <div className="tooltip" style={{ left: Math.min(w - 160, Math.max(0, hover.x - 60)), top: Math.max(0, hover.y - 44) }}>{hover.tip}</div>}
+    </div>
+  );
+}

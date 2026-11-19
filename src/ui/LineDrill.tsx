@@ -118,7 +118,7 @@ export function LineDrill({
       <p className={`feedback ${feedback?.kind ?? ''}`} aria-live="polite">
         {feedback?.text ?? (myTurn ? (ply === item.focusPly ? 'Your move. This is the one you usually get wrong.' : 'Your move.') : '…')}
       </p>
-      <p className="moves">
+      <p className="line-moves">
         {line.slice(0, ply).map((san, i) => (
           <span key={i} className={plyColor(i) === color ? 'mine' : ''}>
             {i % 2 === 0 ? `${i / 2 + 1}. ` : ''}

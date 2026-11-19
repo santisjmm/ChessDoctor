@@ -6,7 +6,26 @@ import type { Color } from './types';
 export type CardFormat = 'portrait' | 'wide';
 export const CARD_SIZES: Record<CardFormat, [number, number]> = { portrait: [1080, 1350], wide: [1200, 630] };
 
+export interface CardStatRow {
+  family: string;
+  n: number;
+  score: number;
+  diff: number;
+}
+
 export interface CardData {
+  /** Current and peak rating per site and time control (most games first, up to 3). */
+  ratings: { label: string; now: number; peak: number }[];
+  results: { n: number; wins: number; draws: number; losses: number; score: number; white: number; black: number };
+  /** Top openings by games, per colour (up to 3 each). */
+  repertoire: { w: CardStatRow[]; b: CardStatRow[] };
+  facts: {
+    bookExitMove: number | null; // average move at which the user's games leave the book
+    openingAccuracy: number | null; // mean accuracy of the opening phase (checked games)
+    openingAccuracyGames: number;
+    vsStronger: { n: number; score: number; expected: number } | null; // opponents 100+ higher
+    winStreak: number; // longest run of wins in these games
+  };
   name: string;
   subtitle: string; // "Lichess + Chess.com · 300 games · Mar–Nov 2026"
   best: { family: string; color: Color; diff: number; score: number; n: number } | null;
@@ -27,14 +46,18 @@ export interface CardData {
 }
 
 const C = {
-  bg1: '#15171c',
-  bg2: '#1f232b',
-  text: '#f4f5f7',
-  muted: '#9aa3b2',
-  green: '#4cc38a',
-  red: '#ff6b6b',
-  light: '#ebdfc8',
-  dark: '#a98a66',
+  bg1: '#1b1a18',
+  bg2: '#262522',
+  panel: 'rgba(255,255,255,0.045)',
+  text: '#f0efec',
+  text2: '#c3c2b7',
+  muted: '#98968f',
+  green: '#84bd4f',
+  win: '#4caf50',
+  draw: '#9a9890',
+  red: '#e05252',
+  light: '#ebecd0',
+  dark: '#739552',
 };
 const FONT = 'Inter, system-ui, sans-serif';
 const font = (size: number, weight = 400) => `${weight} ${size}px ${FONT}`;
@@ -208,19 +231,6 @@ function background(ctx: CanvasRenderingContext2D, w: number, h: number) {
   ctx.fillRect(0, 0, w, h);
 }
 
-const bestLine = (b: NonNullable<CardData['best']>) => `${role(b.family, b.color)} · ${signedPct(b.diff)} vs your average · ${b.n} games`;
-const leakTitle = (l: NonNullable<CardData['leak']>) => `${l.family}, move ${l.moveNo}`;
-const leakLine = (l: NonNullable<CardData['leak']>) =>
-  l.diff < 0 || l.drop === null
-    ? `${role(l.family, l.color)} · you lose ${pct(l.lossRate)} · ${signedPct(l.diff)} vs avg`
-    : `${role(l.family, l.color)} · gives away ${Math.round(l.drop)}% win chance each time`;
-const verdictLines = (v: CardData['verdict']): [string, string][] =>
-  !v
-    ? [[C.muted, 'Your moves hold up here.'], [C.muted, 'The games slip away later.']]
-    : v.best
-      ? [[C.red, `You play ${v.played}`], [C.green, `Better: ${v.best}`]]
-      : [[C.text, `You play ${v.played}`], [C.muted, 'The engine is fine with it. The games slip away later.']];
-
 // --- layouts ------------------------------------------------------------------------------
 export async function drawCard(canvas: HTMLCanvasElement, d: CardData, format: CardFormat) {
   await cardReady();
@@ -234,113 +244,239 @@ export async function drawCard(canvas: HTMLCanvasElement, d: CardData, format: C
   else await wide(ctx, w, h, d);
 }
 
-async function portrait(ctx: CanvasRenderingContext2D, w: number, h: number, d: CardData) {
-  const P = 72, inner = w - 2 * P;
-  ctx.fillStyle = C.muted;
-  ctx.font = font(28, 700);
-  tracked(ctx, 'OPENING REPORT CARD', P, 118, 5);
-  ctx.fillStyle = C.text;
-  ctx.fillText(fitText(ctx, d.name, inner, 76, 800), P, 205);
-  ctx.fillStyle = C.muted;
-  ctx.fillText(fitText(ctx, d.subtitle, inner, 30, 400), P, 255);
+function box(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r = 22) {
+  ctx.fillStyle = C.panel;
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, r);
+  ctx.fill();
+}
 
-  // Best opening
-  let y = 305;
-  panel(ctx, P, y, inner, 215, C.green);
-  ctx.fillStyle = C.green;
-  ctx.font = font(26, 700);
-  tracked(ctx, 'YOUR BEST OPENING', P + 48, y + 62, 3);
-  ctx.fillStyle = C.text;
-  if (d.best) {
-    ctx.fillText(fitText(ctx, d.best.family, inner - 96, 56, 800), P + 48, y + 132);
+function label(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, color = C.muted) {
+  ctx.fillStyle = color;
+  ctx.font = font(size, 700);
+  tracked(ctx, text, x, y, size * 0.12);
+}
+
+/** Rating tiles: "Blitz 1652 · peak 1712". */
+function ratingTiles(ctx: CanvasRenderingContext2D, d: CardData, x: number, y: number, w: number, h: number, scale = 1) {
+  if (!d.ratings.length) return false;
+  const gap = 16 * scale;
+  const tw = (w - gap * (d.ratings.length - 1)) / d.ratings.length;
+  d.ratings.forEach((r, i) => {
+    const tx = x + i * (tw + gap);
+    box(ctx, tx, y, tw, h, 18 * scale);
     ctx.fillStyle = C.muted;
-    ctx.fillText(fitText(ctx, bestLine(d.best), inner - 96, 30, 400), P + 48, y + 180);
-  } else {
-    ctx.font = font(36, 600);
-    ctx.fillText('Play a few more games', P + 48, y + 135);
+    ctx.font = font(22 * scale, 600);
+    ctx.fillText(fitText(ctx, r.label, tw - 36 * scale, 22 * scale, 600), tx + 22 * scale, y + 38 * scale);
+    ctx.fillStyle = C.text;
+    ctx.font = font(48 * scale, 800);
+    ctx.fillText(String(r.now), tx + 22 * scale, y + 90 * scale);
+    ctx.fillStyle = C.muted;
+    ctx.font = font(20 * scale, 400);
+    ctx.fillText(r.peak > r.now ? `peak ${r.peak}` : 'at its peak', tx + 22 * scale, y + 124 * scale);
+  });
+  return true;
+}
+
+/** "300 games", a W/D/L bar and the score. */
+function resultsStrip(ctx: CanvasRenderingContext2D, d: CardData, x: number, y: number, w: number, scale = 1) {
+  const r = d.results;
+  ctx.fillStyle = C.text;
+  ctx.font = font(40 * scale, 800);
+  const games = `${r.n.toLocaleString('en')} games`;
+  ctx.fillText(games, x, y + 40 * scale);
+  ctx.font = font(40 * scale, 800);
+  const sc = `${pct(r.score)}`;
+  const scW = ctx.measureText(sc).width;
+  ctx.fillText(sc, x + w - scW, y + 40 * scale);
+  ctx.fillStyle = C.muted;
+  ctx.font = font(20 * scale, 600);
+  ctx.fillText('score', x + w - scW - ctx.measureText('score ').width - 6, y + 38 * scale);
+  // bar
+  const by = y + 62 * scale, bh = 14 * scale;
+  const segs: [number, string][] = [[r.wins, C.win], [r.draws, C.draw], [r.losses, C.red]];
+  let bx = x;
+  ctx.save();
+  ctx.beginPath();
+  ctx.roundRect(x, by, w, bh, bh / 2);
+  ctx.clip();
+  for (const [n, col] of segs) {
+    const sw = r.n ? (n / r.n) * w : 0;
+    ctx.fillStyle = col;
+    ctx.fillRect(bx, by, Math.max(0, sw - 2), bh);
+    bx += sw;
   }
+  ctx.restore();
+  ctx.fillStyle = C.text2;
+  ctx.font = font(22 * scale, 400);
+  ctx.fillText(`${r.wins} won · ${r.draws} drawn · ${r.losses} lost`, x, by + bh + 34 * scale);
+  const cs = `White ${pct(r.white)} · Black ${pct(r.black)}`;
+  ctx.fillText(cs, x + w - ctx.measureText(cs).width, by + bh + 34 * scale);
+}
 
-  // Leak
-  y = 550;
-  const leakH = 650;
-  panel(ctx, P, y, inner, leakH, C.red);
-  ctx.fillStyle = C.red;
-  ctx.font = font(26, 700);
-  tracked(ctx, 'YOUR LEAK', P + 48, y + 62, 3);
+function verdictPanel(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, accent: string, title: string, head: string, sub: string, scale = 1) {
+  panel(ctx, x, y, w, h, accent);
+  label(ctx, title, x + 34 * scale, y + 44 * scale, 20 * scale, accent);
   ctx.fillStyle = C.text;
-  if (d.leak) {
-    ctx.fillText(fitText(ctx, leakTitle(d.leak), inner - 96, 56, 800), P + 48, y + 132);
+  ctx.fillText(fitText(ctx, head, w - 60 * scale, 40 * scale, 800), x + 34 * scale, y + 96 * scale);
+  ctx.fillStyle = C.muted;
+  ctx.font = font(21 * scale, 400);
+  let ty = y + 134 * scale;
+  for (const line of wrap(ctx, sub, w - 60 * scale).slice(0, 2)) {
+    ctx.fillText(line, x + 34 * scale, ty);
+    ty += 28 * scale;
+  }
+}
+
+function repertoire(ctx: CanvasRenderingContext2D, d: CardData, x: number, y: number, w: number, perColor = 3) {
+  let ty = y;
+  for (const c of ['w', 'b'] as const) {
+    const rows = d.repertoire[c].slice(0, perColor);
+    if (!rows.length) continue;
+    label(ctx, c === 'w' ? 'AS WHITE' : 'AS BLACK', x, ty + 20, 18);
     ctx.fillStyle = C.muted;
-    ctx.fillText(fitText(ctx, leakLine(d.leak), inner - 96, 30, 400), P + 48, y + 180);
-    const bs = 400, bx = P + 48, by = y + 214;
-    if (d.verdict) await drawBoard(ctx, bx, by, bs, d.verdict);
-    const tx = bx + bs + 44, tw = inner - 96 - bs - 44;
-    let ty = by + 60;
-    for (const [color, text] of verdictLines(d.verdict)) {
-      ctx.fillStyle = color;
-      ctx.font = font(36, 700);
-      for (const line of wrap(ctx, text, tw)) {
-        ctx.fillText(line, tx, ty);
-        ty += 46;
-      }
-      ty += 18;
-    }
-    ctx.fillStyle = C.muted;
-    ctx.font = font(28, 400);
-    for (const line of wrap(ctx, `You reached this position in ${d.leak.reached} games.`, tw)) {
-      ctx.fillText(line, tx, ty + 10);
+    ctx.font = font(16, 600);
+    ctx.fillText('games', x + w - 120 - ctx.measureText('games').width, ty + 20);
+    ctx.fillText('score', x + w - ctx.measureText('score').width, ty + 20);
+    ty += 34;
+    for (const row of rows) {
+      ctx.fillStyle = C.text;
+      ctx.font = font(24, 600);
+      ctx.fillText(fitText(ctx, row.family, w - 150, 24, 600), x, ty + 24);
+      ctx.fillStyle = C.muted;
+      ctx.font = font(20, 400);
+      const n = `${row.n}`;
+      ctx.fillText(n, x + w - 120 - ctx.measureText(n).width, ty + 24);
+      ctx.fillStyle = row.n >= 5 && row.diff >= 0.03 ? C.win : row.n >= 5 && row.diff <= -0.03 ? C.red : C.text2;
+      ctx.font = font(24, 700);
+      const sc = pct(row.score);
+      ctx.fillText(sc, x + w - ctx.measureText(sc).width, ty + 24);
       ty += 38;
     }
-  } else {
-    ctx.font = font(36, 600);
-    ctx.fillText('No leak found. Nice.', P + 48, y + 135);
+    ty += 8;
+  }
+}
+
+const factLines = (d: CardData): [string, string][] => {
+  const out: [string, string][] = [];
+  if (d.facts.bookExitMove) out.push([`move ${d.facts.bookExitMove.toFixed(0)}`, 'you usually leave the book']);
+  if (d.facts.openingAccuracy !== null) out.push([`${Math.round(d.facts.openingAccuracy)}%`, 'opening accuracy']);
+  if (d.facts.vsStronger) out.push([pct(d.facts.vsStronger.score), `vs stronger players (exp. ${pct(d.facts.vsStronger.expected)})`]);
+  if (out.length < 3 && d.facts.winStreak >= 3) out.push([`${d.facts.winStreak} wins`, 'longest winning streak']);
+  return out;
+};
+
+const bestLine = (b: NonNullable<CardData['best']>) => `${role(b.family, b.color)} · ${signedPct(b.diff)} vs your average · ${b.n} games`;
+const leakTitle = (l: NonNullable<CardData['leak']>) => `${l.family}, move ${l.moveNo}`;
+const leakLine = (l: NonNullable<CardData['leak']>) =>
+  l.diff < 0 || l.drop === null
+    ? `${role(l.family, l.color)} · you lose ${pct(l.lossRate)} · ${signedPct(l.diff)} vs avg`
+    : `${role(l.family, l.color)} · gives away ${Math.round(l.drop)}% win chance each time`;
+const verdictText = (v: CardData['verdict']): [string, string][] =>
+  !v ? [[C.muted, 'Your moves hold up here.']] : v.best ? [[C.red, `You play ${v.played}`], [C.win, `Better: ${v.best}`]] : [[C.text, `You play ${v.played}`], [C.muted, 'The engine is fine with it.']];
+
+async function portrait(ctx: CanvasRenderingContext2D, w: number, h: number, d: CardData) {
+  const P = 64, inner = w - 2 * P;
+  label(ctx, 'OPENING REPORT CARD', P, 100, 24);
+  ctx.fillStyle = C.text;
+  ctx.fillText(fitText(ctx, d.name, inner, 68, 800), P, 176);
+  ctx.fillStyle = C.muted;
+  ctx.fillText(fitText(ctx, d.subtitle, inner, 26, 400), P, 220);
+
+  let y = 250;
+  if (ratingTiles(ctx, d, P, y, inner, 144)) y += 164;
+  resultsStrip(ctx, d, P, y, inner);
+  y += 138;
+
+  // Best | Leak
+  const half = (inner - 18) / 2;
+  if (d.best) verdictPanel(ctx, P, y, half, 184, C.green, 'BEST OPENING', d.best.family, bestLine(d.best));
+  else verdictPanel(ctx, P, y, half, 184, C.green, 'BEST OPENING', 'Play a few more', 'Needs more games in one opening.');
+  if (d.leak) verdictPanel(ctx, P + half + 18, y, half, 184, C.red, 'YOUR LEAK', leakTitle(d.leak), leakLine(d.leak));
+  else verdictPanel(ctx, P + half + 18, y, half, 184, C.red, 'YOUR LEAK', 'No leak found', 'Your openings hold up.');
+  y += 204;
+
+  // Board | repertoire
+  const bs = 340;
+  box(ctx, P, y, inner, bs + 40);
+  if (d.verdict) await drawBoard(ctx, P + 20, y + 20, bs, d.verdict);
+  const tx = P + 20 + bs + 30, tw = inner - bs - 70;
+  let ty = y + 50;
+  for (const [color, text] of verdictText(d.verdict)) {
+    ctx.fillStyle = color;
+    ctx.font = font(28, 700);
+    ctx.fillText(fitText(ctx, text, tw, 28, 700), tx, ty);
+    ty += 38;
+  }
+  if (d.leak) {
+    ctx.fillStyle = C.muted;
+    ctx.font = font(20, 400);
+    ctx.fillText(fitText(ctx, `Reached in ${d.leak.reached} of your games`, tw, 20, 400), tx, ty);
+  }
+  repertoire(ctx, d, tx, ty + 14, tw, 2);
+  y += bs + 60;
+
+  // Facts
+  const facts = factLines(d);
+  if (facts.length) {
+    const fw = (inner - 16 * (facts.length - 1)) / facts.length;
+    facts.forEach(([big, small], i) => {
+      const fx = P + i * (fw + 16);
+      box(ctx, fx, y, fw, 96, 18);
+      ctx.fillStyle = C.text;
+      ctx.font = font(34, 800);
+      ctx.fillText(fitText(ctx, big, fw - 40, 34, 800), fx + 22, y + 46);
+      ctx.fillStyle = C.muted;
+      ctx.font = font(19, 400);
+      ctx.fillText(fitText(ctx, small, fw - 40, 19, 400), fx + 22, y + 76);
+    });
   }
 
   // Footer
+  ctx.fillStyle = C.text2;
+  ctx.font = font(24, 700);
+  ctx.fillText(APP_NAME, P, h - 36);
   ctx.fillStyle = C.muted;
-  ctx.font = font(26, 600);
-  ctx.fillText(APP_NAME, P, h - 72);
-  ctx.font = font(26, 400);
+  ctx.font = font(22, 400);
   const url = `Get yours free at ${APP_URL}`;
-  ctx.fillText(url, w - P - ctx.measureText(url).width, h - 72);
+  ctx.fillText(url, w - P - ctx.measureText(url).width, h - 36);
 }
 
 async function wide(ctx: CanvasRenderingContext2D, w: number, h: number, d: CardData) {
-  const P = 52, bs = 470, bx = w - P - bs, by = (h - bs) / 2 - 14;
-  const colW = bx - P - 40;
-  ctx.fillStyle = C.muted;
-  ctx.font = font(20, 700);
-  tracked(ctx, 'OPENING REPORT CARD', P, 74, 4);
+  const P = 44, bs = 300, colW = w - 2 * P - bs - 36;
+  label(ctx, 'OPENING REPORT CARD', P, 58, 16);
   ctx.fillStyle = C.text;
-  ctx.fillText(fitText(ctx, d.name, colW, 52, 800), P, 132);
+  ctx.fillText(fitText(ctx, d.name, colW, 44, 800), P, 106);
   ctx.fillStyle = C.muted;
-  ctx.fillText(fitText(ctx, d.subtitle, colW, 22, 400), P, 166);
+  ctx.fillText(fitText(ctx, d.subtitle, colW, 18, 400), P, 134);
+  let y = 154;
+  if (ratingTiles(ctx, d, P, y, colW, 92, 0.68)) y += 108;
+  resultsStrip(ctx, d, P, y, colW, 0.7);
+  y += 110;
+  const half = (colW - 12) / 2;
+  if (d.best) verdictPanel(ctx, P, y, half, 136, C.green, 'BEST OPENING', d.best.family, bestLine(d.best), 0.68);
+  if (d.leak) verdictPanel(ctx, P + half + 12, y, half, 136, C.red, 'YOUR LEAK', leakTitle(d.leak), leakLine(d.leak), 0.68);
 
-  const block = (y: number, label: string, accent: string, title: string, sub: string) => {
-    ctx.fillStyle = accent;
-    ctx.fillRect(P, y, 6, 110);
-    ctx.font = font(18, 700);
-    tracked(ctx, label, P + 26, y + 26, 3);
-    ctx.fillStyle = C.text;
-    ctx.fillText(fitText(ctx, title, colW - 26, 38, 800), P + 26, y + 72);
-    ctx.fillStyle = C.muted;
-    ctx.fillText(fitText(ctx, sub, colW - 26, 21, 400), P + 26, y + 104);
-  };
-  block(206, 'YOUR BEST OPENING', C.green, d.best?.family ?? 'Play a few more games', d.best ? bestLine(d.best) : '');
-  if (d.leak) {
-    const v = verdictLines(d.verdict).map(([, t]) => t).join(' · ');
-    block(356, 'YOUR LEAK', C.red, leakTitle(d.leak), leakLine(d.leak));
-    ctx.fillStyle = C.text;
-    ctx.fillText(fitText(ctx, v, colW - 26, 24, 600), P + 26, 506);
-  } else block(356, 'YOUR LEAK', C.red, 'No leak found. Nice.', '');
-
+  const bx = w - P - bs, by = 58;
   if (d.verdict) await drawBoard(ctx, bx, by, bs, d.verdict);
+  let ty = by + bs + 40;
+  for (const [color, text] of verdictText(d.verdict)) {
+    ctx.fillStyle = color;
+    ctx.font = font(22, 700);
+    ctx.fillText(fitText(ctx, text, bs, 22, 700), bx, ty);
+    ty += 30;
+  }
+  const facts = factLines(d).slice(0, 2);
   ctx.fillStyle = C.muted;
-  ctx.font = font(20, 600);
-  ctx.fillText(APP_NAME, P, h - 30);
-  ctx.font = font(20, 400);
+  ctx.font = font(16, 400);
+  ctx.fillText(fitText(ctx, facts.map(([a, b]) => `${a} ${b}`).join(' · '), colW, 16, 400), P, h - 54);
+  ctx.fillStyle = C.text2;
+  ctx.font = font(18, 700);
+  ctx.fillText(APP_NAME, P, h - 24);
+  ctx.fillStyle = C.muted;
+  ctx.font = font(17, 400);
   const url = `Get yours free at ${APP_URL}`;
-  ctx.fillText(url, bx + bs - ctx.measureText(url).width, h - 30);
+  ctx.fillText(url, w - P - ctx.measureText(url).width, h - 24);
 }
 
 // --- export -------------------------------------------------------------------------------

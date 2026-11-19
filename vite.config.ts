@@ -12,8 +12,8 @@ export default defineConfig({
         name: 'ChessDoctor',
         short_name: 'ChessDoctor',
         description: 'Find and fix the leaks in the openings you actually play. Everything runs on your device.',
-        theme_color: '#14161a',
-        background_color: '#14161a',
+        theme_color: '#1b1a18',
+        background_color: '#1b1a18',
         display: 'standalone',
         start_url: '.',
         icons: [

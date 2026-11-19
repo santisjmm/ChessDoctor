@@ -2,29 +2,44 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { DEFAULT_GAMES } from './config';
 import { analysis } from './lib/analysis';
 import { db, type DrillItem } from './lib/db';
-import { drillsFromVerdicts, mainLineDrill, mistakeDrill, upsertDrills } from './lib/drills';
+import { drillsFromVerdicts, mainLineDrill, mistakeDrill, positionDrill, positionDrillsFrom, upsertDrills } from './lib/drills';
 import type { Account } from './lib/importer';
 import { saveAccounts, savedAccounts } from './lib/library';
-import { parseSharePath } from './lib/share';
 import { reportFromDevice, runReport, type ReportResult, type Stage } from './lib/pipeline';
-import { About } from './ui/About';
+import { parseSharePath } from './lib/share';
 import { DrillSession } from './ui/DrillSession';
-import { Games } from './ui/Games';
-import { Home } from './ui/Home';
-import { Openings } from './ui/Openings';
-import { Progress } from './ui/Progress';
-import { SharedIntro } from './ui/SharedIntro';
+import { Bare, Layout, type Tab } from './ui/Layout';
+import { GamePage } from './ui/pages/GamePage';
+import { GamesPage } from './ui/pages/GamesPage';
+import { SettingsPage } from './ui/pages/SettingsPage';
+import { StatsPage } from './ui/pages/StatsPage';
+import { TrainPage, type TrainTab } from './ui/pages/TrainPage';
 import { ReportView } from './ui/ReportView';
+import { SharedIntro } from './ui/SharedIntro';
 import { Start } from './ui/Start';
-import { TabBar, type Tab } from './ui/TabBar';
 import { Working } from './ui/Working';
 
-type View = 'boot' | 'start' | 'working' | 'home' | 'openings' | 'games' | 'progress' | 'report' | 'drill' | 'about' | 'shared' | 'shared-report';
-const ROUTES: View[] = ['start', 'home', 'openings', 'games', 'progress', 'report', 'drill', 'about', 'shared', 'shared-report'];
-const routeView = (): View | null => {
-  const v = location.hash.replace(/^#\/?/, '').split('?')[0] as View;
-  return ROUTES.includes(v) ? v : null;
-};
+/** Where the app is: parsed from and written to the URL hash. */
+type Route =
+  | { v: 'boot' | 'start' | 'working' | 'drill' | 'card' | 'stats' | 'settings' | 'games' | 'shared' | 'shared-report' }
+  | { v: 'game'; id: string }
+  | { v: 'train'; tab: TrainTab };
+
+const TRAIN_TABS: TrainTab[] = ['today', 'mistakes', 'openings', 'learn'];
+function parseHash(): Route | null {
+  const [a, b] = location.hash.replace(/^#\/?/, '').split('/');
+  if (a === 'games' && b) return { v: 'game', id: decodeURIComponent(b) };
+  if (a === 'train') return { v: 'train', tab: TRAIN_TABS.includes(b as TrainTab) ? (b as TrainTab) : 'today' };
+  if (a === 'report') return { v: 'card' }; // older links
+  if (a === 'progress') return { v: 'stats' };
+  if (a === 'openings') return { v: 'train', tab: 'openings' };
+  if (a === 'home') return { v: 'train', tab: 'today' };
+  if (a === 'about') return { v: 'settings' };
+  if (['games', 'stats', 'settings', 'card', 'start', 'drill'].includes(a)) return { v: a } as Route;
+  return null;
+}
+const hashOf = (r: Route) => (r.v === 'game' ? `#/games/${encodeURIComponent(r.id)}` : r.v === 'train' ? `#/train/${r.tab}` : `#/${r.v}`);
+const NEEDS_RESULT = new Set(['games', 'game', 'train', 'stats', 'card']);
 
 /** Hands a fresh report to the trainer: engine verdicts, drills and the background queue. */
 async function adopt(r: ReportResult) {
@@ -36,7 +51,7 @@ async function adopt(r: ReportResult) {
 }
 
 export function App() {
-  const [view, setView] = useState<View>('boot');
+  const [route, setRoute] = useState<Route>({ v: 'boot' });
   const [accounts, setAccounts] = useState<Account[]>(savedAccounts);
   const [stage, setStage] = useState<Stage | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -47,81 +62,81 @@ export function App() {
   const [shared] = useState<Account[] | null>(() => parseSharePath(location.pathname));
   const [sharedResult, setSharedResult] = useState<ReportResult | null>(null);
   const abort = useRef<AbortController | null>(null);
+  const back = useRef<Route>({ v: 'train', tab: 'today' });
 
-  const go = useCallback((v: View) => {
-    setView(v);
-    const hash = `#/${v}`;
-    if (location.hash !== hash) history.pushState(null, '', hash);
+  const go = useCallback((r: Route) => {
+    setRoute(r);
+    const h = hashOf(r);
+    if (location.hash !== h) history.pushState(null, '', h);
+    window.scrollTo(0, 0);
   }, []);
 
   // Back button / manual hash changes.
   useEffect(() => {
     const onPop = () => {
-      const v = routeView();
-      if (!v) return;
-      if (['report', 'openings', 'home', 'games', 'progress'].includes(v) && !result) return;
-      if (v === 'drill' && !session.length) return;
-      if ((v === 'shared' || v === 'shared-report') && !shared) return;
-      if (v === 'shared-report' && !sharedResult) return;
-      setView(v);
+      const r = parseHash();
+      if (!r) return;
+      if (NEEDS_RESULT.has(r.v) && !result) return;
+      if (r.v === 'drill' && !session.length) return;
+      setRoute(r);
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
-  }, [result, session, shared, sharedResult]);
+  }, [result, session]);
 
-  // Boot: returning users go straight to Today, built from the games on this device.
+  // Boot: returning users open on Train > Today, built from the games on this device.
   useEffect(() => {
     (async () => {
-      if (shared) {
-        setView('shared');
-        return;
-      }
+      if (shared) return setRoute({ v: 'shared' });
       const acc = savedAccounts();
       const haveGames = acc.length > 0 && (await db.games.count().catch(() => 0)) > 0;
-      if (!haveGames) {
-        setView('start');
-        return;
-      }
-      const wanted = routeView();
-      setView(wanted === 'about' ? 'about' : 'home');
+      if (!haveGames) return setRoute({ v: 'start' });
+      const wanted = parseHash();
       try {
         const r = await reportFromDevice(acc, DEFAULT_GAMES, () => undefined);
         setResult(r);
         await adopt(r);
-        if (wanted && ['openings', 'report', 'games', 'progress'].includes(wanted)) setView(wanted);
+        setRoute(wanted && wanted.v !== 'start' && wanted.v !== 'drill' ? wanted : { v: 'train', tab: 'today' });
       } catch {
-        setView('start');
+        setRoute({ v: 'start' });
       }
     })();
-  }, []);
+  }, [shared]);
 
-  async function build(online: Account[], after: View = 'report') {
+  async function build(online: Account[], after: 'card' | 'stay' = 'card') {
     const acc = [...online, ...savedAccounts().filter((a) => a.site === 'pgn')];
     abort.current?.abort();
     const ac = new AbortController();
     abort.current = ac;
     setError(null);
     setStage(null);
-    if (after === 'report') go('working');
-    else setBusy('Fetching…');
+    if (after === 'card') go({ v: 'working' });
+    else setBusy('Syncing…');
     saveAccounts(acc);
     setAccounts(acc);
     try {
       const r = await runReport(acc, DEFAULT_GAMES, (s) => {
         setStage(s);
-        if (after !== 'report') setBusy(s.kind === 'import' ? 'Fetching…' : 'Analysing…');
+        if (after !== 'card') setBusy(s.kind === 'import' ? 'Syncing…' : 'Analysing…');
       }, ac.signal);
       if (ac.signal.aborted) return;
       setResult(r);
       await adopt(r);
-      go(after);
+      if (after === 'card') go({ v: 'card' });
     } catch (e) {
       if (ac.signal.aborted) return;
       setError(e instanceof Error ? e.message : String(e));
-      if (after === 'report') go('start');
+      if (after === 'card') go({ v: 'start' });
     } finally {
       setBusy(null);
     }
+  }
+
+  async function reload(acc = savedAccounts()) {
+    setAccounts(acc);
+    const r = await reportFromDevice(acc, DEFAULT_GAMES, () => undefined);
+    setResult(r);
+    await adopt(r);
   }
 
   /** Builds a shared card on this device without touching the viewer's own accounts or drills. */
@@ -131,108 +146,105 @@ export function App() {
     abort.current = ac;
     setError(null);
     setStage(null);
-    go('working');
+    go({ v: 'working' });
     try {
       const r = await runReport(acc, DEFAULT_GAMES, setStage, ac.signal);
       if (ac.signal.aborted) return;
-      (window as unknown as Record<string, unknown>).__report = r; // for the headless check
+      (window as unknown as Record<string, unknown>).__report = r;
       setSharedResult(r);
-      go('shared-report');
+      go({ v: 'shared-report' });
     } catch (e) {
       if (ac.signal.aborted) return;
       setError(e instanceof Error ? e.message : String(e));
-      go('shared');
+      go({ v: 'shared' });
     }
   }
-
-  /** Leaves a share link for the app proper (own card or Today). */
+  /** Leaves a share link for the app proper. */
   const leaveShared = () => {
     history.pushState(null, '', '/');
     location.reload();
   };
 
-  const drill = (items: DrillItem[]) => {
+  const drill = async (items: DrillItem[]) => {
     if (!items.length) return;
-    setSession(items);
-    go('drill');
+    await upsertDrills(items).catch(() => undefined);
+    const fresh = await Promise.all(items.map(async (i) => (await db.drills.get(i.id)) ?? i));
+    back.current = route;
+    setSession(fresh);
+    go({ v: 'drill' });
   };
 
-  const tab = (['home', 'openings', 'games', 'progress', 'report'].includes(view) ? view : null) as Tab | null;
+  const sync = () => void build(accounts.filter((a) => a.site !== 'pgn'), 'stay');
+  const tab: Tab | null =
+    route.v === 'games' || route.v === 'game' ? 'games' : route.v === 'train' ? 'train' : route.v === 'stats' || route.v === 'card' ? 'stats' : route.v === 'settings' ? 'settings' : null;
+  const onTab = (t: Tab) => go(t === 'train' ? { v: 'train', tab: 'today' } : ({ v: t } as Route));
+  const gameItem = route.v === 'game' ? result?.items.find((i) => i.game.id === route.id) : undefined;
+
+  if (tab && result) {
+    return (
+      <Layout tab={tab} onTab={onTab} busy={busy} onSync={sync}>
+        {route.v === 'games' && (
+          <GamesPage
+            items={result.items}
+            onOpen={(id) => go({ v: 'game', id })}
+            onImported={async (a) => {
+              const acc = [...accounts.filter((x) => !(x.site === 'pgn' && x.user.toLowerCase() === a.user.toLowerCase())), a];
+              saveAccounts(acc);
+              await reload(acc);
+            }}
+          />
+        )}
+        {route.v === 'game' && gameItem && (
+          <GamePage
+            key={gameItem.game.id}
+            item={gameItem}
+            onBack={() => go({ v: 'games' })}
+            onReviewed={(r) => void upsertDrills(positionDrillsFrom(r, gameItem.game.color, gameItem.opening?.family ?? 'Middlegame'))}
+            onTrainMistake={(r, p) => void drill([positionDrill(r, p, gameItem.opening?.family ?? 'Middlegame')])}
+          />
+        )}
+        {route.v === 'game' && !gameItem && <div className="empty"><h3>Game not found on this device</h3></div>}
+        {route.v === 'train' && (
+          <TrainPage tab={route.tab} onTab={(t) => go({ v: 'train', tab: t })} result={result} onStart={(i) => void drill(i)} onCard={() => go({ v: 'card' })} />
+        )}
+        {route.v === 'stats' && <StatsPage result={result} onOpenGame={(id) => go({ v: 'game', id })} onCard={() => go({ v: 'card' })} />}
+        {route.v === 'card' && (
+          <ReportView
+            result={result}
+            onTrain={async () => {
+              const { mistake, report } = result;
+              const node = mistake && result.verdicts.find((p) => p.v === mistake)?.node;
+              const item = node ? mistakeDrill(node, mistake) : report.leak ? mainLineFromLeak(result) : null;
+              if (item) await drill([item]);
+            }}
+            onRestart={() => go({ v: 'start' })}
+            onAbout={() => go({ v: 'settings' })}
+          />
+        )}
+        {route.v === 'settings' && <SettingsPage busy={busy} onSync={sync} onChangeAccounts={() => go({ v: 'start' })} onImported={() => void reload()} />}
+      </Layout>
+    );
+  }
 
   return (
-    <div className={`app ${tab ? 'with-tabs' : ''}`}>
-      {view === 'boot' && <main className="screen"><p className="hint">Loading…</p></main>}
-      {view === 'shared' && shared && <SharedIntro accounts={shared} error={error} onBuild={() => buildShared(shared)} onOwn={leaveShared} />}
-      {view === 'shared-report' && sharedResult && (
-        <ReportView result={sharedResult} shared onTrain={leaveShared} onRestart={leaveShared} onAbout={() => go('about')} />
-      )}
-      {view === 'start' && <Start onSubmit={(a) => build(a, 'report')} error={error} onAbout={() => go('about')} />}
-      {view === 'working' && (
+    <Bare>
+      {route.v === 'boot' && <p className="muted">Loading…</p>}
+      {route.v === 'start' && <Start onSubmit={(a) => build(a, 'card')} error={error} onAbout={() => go({ v: 'settings' })} />}
+      {route.v === 'working' && (
         <Working
           stage={stage}
           onCancel={() => {
             abort.current?.abort();
-            go(shared && !sharedResult ? 'shared' : result ? 'home' : 'start');
+            go(shared && !sharedResult ? { v: 'shared' } : result ? { v: 'train', tab: 'today' } : { v: 'start' });
           }}
         />
       )}
-      {view === 'home' && (
-        <Home
-          accounts={accounts}
-          result={result}
-          busy={busy}
-          onStart={drill}
-          onRefresh={() => build(accounts, 'home')}
-          onCard={() => go('report')}
-          onChangeAccounts={() => go('start')}
-        />
-      )}
-      {view === 'openings' && result && (
-        <Openings
-          items={result.items}
-          onDrill={async (item) => {
-            await upsertDrills([item]);
-            drill([(await db.drills.get(item.id)) ?? item]);
-          }}
-        />
-      )}
-      {view === 'games' && result && (
-        <Games
-          items={result.items}
-          onImported={async (a) => {
-            const acc = [...accounts.filter((x) => !(x.site === 'pgn' && x.user.toLowerCase() === a.user.toLowerCase())), a];
-            saveAccounts(acc);
-            setAccounts(acc);
-            const r = await reportFromDevice(acc, DEFAULT_GAMES, () => undefined);
-            setResult(r);
-            await adopt(r);
-          }}
-          onDrill={async (item) => {
-            await upsertDrills([item]);
-            drill([(await db.drills.get(item.id)) ?? item]);
-          }}
-        />
-      )}
-      {view === 'progress' && result && <Progress items={result.items} />}
-      {view === 'report' && result && (
-        <ReportView
-          result={result}
-          onTrain={async () => {
-            const { mistake, report } = result;
-            const node = mistake && result.verdicts.find((p) => p.v === mistake)?.node;
-            const item = node ? mistakeDrill(node, mistake) : report.leak ? mainLineFromLeak(result) : null;
-            if (!item) return;
-            await upsertDrills([item]);
-            drill([(await db.drills.get(item.id)) ?? item]);
-          }}
-          onRestart={() => go('start')}
-          onAbout={() => go('about')}
-        />
-      )}
-      {view === 'drill' && <DrillSession key={session.map((s) => s.id).join()} items={session} onExit={() => go(result ? 'home' : 'start')} />}
-      {view === 'about' && <About onBack={() => go(shared ? (sharedResult ? 'shared-report' : 'shared') : result ? 'home' : 'start')} />}
-      {tab && <TabBar tab={tab} onTab={(t) => go(t)} />}
-    </div>
+      {route.v === 'shared' && shared && <SharedIntro accounts={shared} error={error} onBuild={() => buildShared(shared)} onOwn={leaveShared} />}
+      {route.v === 'shared-report' && sharedResult && <ReportView result={sharedResult} shared onTrain={leaveShared} onRestart={leaveShared} onAbout={() => undefined} />}
+      {route.v === 'drill' && <DrillSession key={session.map((s) => s.id).join()} items={session} onExit={() => go(result ? back.current : { v: 'start' })} />}
+      {NEEDS_RESULT.has(route.v) && !result && <p className="muted">Loading…</p>}
+      {route.v === 'settings' && !result && <SettingsPage busy={busy} onSync={sync} onChangeAccounts={() => go({ v: 'start' })} onImported={() => void reload()} />}
+    </Bare>
   );
 }
 

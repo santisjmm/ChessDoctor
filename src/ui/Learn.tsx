@@ -52,7 +52,7 @@ export function Learn({ items, color }: { items: GameOpening[]; color: Color }) 
     return (
       <li key={f.family}>
         <button className="move-row learn-row" onClick={() => setOpen(f)}>
-          <span className="mv">{f.family}</span>
+          <span className="mv-label">{f.family}</span>
           <span className="muted">{m ? `${m.n} games · ${pct(m.points / m.n)}` : ''}</span>
           <span className="mv-score">{done}/{f.lines.length}</span>
           <span className="op-meter" aria-hidden><i className="w" style={{ width: `${(done / f.lines.length) * 100}%` }} /></span>
@@ -196,7 +196,7 @@ function BookDrill({ family, color, onBack }: { family: FamilyInfo; color: Color
           <p className="hint">{done ? target.name : 'Play your side; the computer answers from the book.'}</p>
         </div>
         <p className={`feedback ${feedback?.kind ?? ''}`} aria-live="polite">{feedback?.text ?? (myTurn ? 'Your move.' : '…')}</p>
-        <p className="moves">
+        <p className="line-moves">
           {moves.map((s, i) => (
             <span key={i} className={plyColor(i) === color ? 'mine' : ''}>{i % 2 === 0 ? `${i / 2 + 1}. ` : ''}{s} </span>
           ))}

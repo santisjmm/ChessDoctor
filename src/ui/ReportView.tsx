@@ -43,9 +43,9 @@ export function ReportView({
     <main className="screen report">
       <header className="row">
         <button className="link" onClick={onRestart}>{shared ? '← Make my own' : '← New report'}</button>
-        <div className="seg" role="tablist" aria-label="Card size">
-          <button role="tab" aria-selected={format === 'portrait'} onClick={() => setFormat('portrait')}>Phone</button>
-          <button role="tab" aria-selected={format === 'wide'} onClick={() => setFormat('wide')}>Wide</button>
+        <div className="segmented" role="group" aria-label="Card size">
+          <button aria-pressed={format === 'portrait'} onClick={() => setFormat('portrait')}>Phone</button>
+          <button aria-pressed={format === 'wide'} onClick={() => setFormat('wide')}>Wide</button>
         </div>
       </header>
 

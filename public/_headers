@@ -1,0 +1,22 @@
+# Cloudflare Pages response headers.
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://lichess.org https://api.chess.com; frame-ancestors 'none'; base-uri 'self'
+
+# Fingerprinted build assets never change.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Engine and book: cache for a day; the service worker keeps them offline.
+/engine/*
+  Cache-Control: public, max-age=86400
+/book.json
+  Cache-Control: public, max-age=86400
+
+# Always revalidate the app shell and service worker so updates arrive.
+/index.html
+  Cache-Control: no-cache
+/sw.js
+  Cache-Control: no-cache

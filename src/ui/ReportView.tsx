@@ -3,7 +3,7 @@ import { canvasToBlob, drawCard, pct, shareOrDownload, downloadBlob, signedPct, 
 import { moveLabel, type ReportResult } from '../lib/pipeline';
 import { moveNumber } from '../lib/openings';
 import { score } from '../lib/report';
-import { APP_URL } from '../config';
+import { APP_NAME, APP_URL } from '../config';
 
 export function ReportView({ result, onTrain, onRestart, onAbout }: { result: ReportResult; onTrain: () => void; onRestart: () => void; onAbout: () => void }) {
   const [format, setFormat] = useState<CardFormat>('portrait');
@@ -30,7 +30,7 @@ export function ReportView({ result, onTrain, onRestart, onAbout }: { result: Re
   }, [card, format]);
 
   const filename = `opening-report-${card.name.replace(/[^A-Za-z0-9_-]+/g, '_')}-${format}.png`;
-  const shareText = `My opening report card. Get yours at ${APP_URL}`;
+  const shareText = `My ${APP_NAME} opening report card. Get yours free at https://${APP_URL}`;
 
   return (
     <main className="screen report">

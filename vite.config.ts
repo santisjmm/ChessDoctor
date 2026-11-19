@@ -9,9 +9,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['icon.svg', 'book.json', 'engine/*'],
       manifest: {
-        name: 'Opening Trainer',
-        short_name: 'Openings',
-        description: 'Fix the openings you actually play. Everything runs on your device.',
+        name: 'ChessDoctor',
+        short_name: 'ChessDoctor',
+        description: 'Find and fix the leaks in the openings you actually play. Everything runs on your device.',
         theme_color: '#14161a',
         background_color: '#14161a',
         display: 'standalone',

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Account } from '../lib/importer';
-import { DEFAULT_GAMES } from '../config';
+import { APP_NAME, DEFAULT_GAMES } from '../config';
 
 function saved(): Account[] {
   try {
@@ -21,7 +21,8 @@ export function Start({ onSubmit, error, onAbout }: { onSubmit: (a: Account[]) =
   ];
   return (
     <main className="screen start">
-      <p className="eyebrow">Free · no sign-up</p>
+      <p className="wordmark">{APP_NAME}</p>
+      <p className="eyebrow tight">Free · no sign-up</p>
       <h1>Your opening report card</h1>
       <p className="lede">
         Where your openings win you games, where they leak points, and the exact move to fix. Built from your last {DEFAULT_GAMES} games.

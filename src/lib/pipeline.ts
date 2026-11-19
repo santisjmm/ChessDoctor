@@ -5,7 +5,7 @@ import { getEngine } from './analysis';
 import { loadItems } from './library';
 import { importAccounts, siteName, type Account } from './importer';
 import { judgeMove, LEAK_DROP, type MoveVerdict } from './leakcheck';
-import { moveNumber, type GameOpening } from './openings';
+import { moveNumber, plyColor, type GameOpening } from './openings';
 import { buildReport, decisionNodes, deficit, leakFromNode, lossRate, score, type DecisionNode, type Report } from './report';
 import type { ImportProgress, Site } from './types';
 
@@ -78,7 +78,11 @@ export async function reportFromDevice(accounts: Account[], max: number, onStage
     mistake = bad[0].v;
     leakLine = report.leak.path;
   } else if (report.leak) {
-    const own = verdicts.find(({ node }) => node.line.join(' ').startsWith(report.leak!.line.join(' ')));
+    // The engine's view of the user's own move in the leak line (same colour, same moves).
+    const leak = report.leak;
+    const own = verdicts.find(
+      ({ node }) => node.color === leak.stat.color && leak.line.every((san, i) => node.line[i] === san),
+    );
     if (own) checked = [own.v];
   }
   return { accounts, items, report, leakLine, mistake, checked, verdicts, card: cardData(accounts, report, mistake, checked, leakLine) };
@@ -98,6 +102,7 @@ function cardData(accounts: Account[], r: Report, mistake: MoveVerdict | null, c
   const period = month(r.firstPlayed) === month(r.lastPlayed) ? month(r.lastPlayed) : `${month(r.firstPlayed)} – ${month(r.lastPlayed)}`;
   const leak = r.leak;
   let verdict: CardData['verdict'] = null;
+  let fallbackPly = -1;
   const shown = mistake ?? checked[0] ?? null;
   if (leak && shown) {
     verdict = {
@@ -109,14 +114,20 @@ function cardData(accounts: Account[], r: Report, mistake: MoveVerdict | null, c
       bestUci: mistake ? mistake.bestUci : null,
     };
   } else if (leak && line) {
-    const c = new Chess();
-    for (const san of line.slice(0, leak.exitPly)) c.move(san);
-    const mv = c.move(line[leak.exitPly]);
-    verdict = {
-      fen: c.fen(), orientation: leak.stat.color, played: moveLabel(leak.exitPly, mv.san), best: null,
-      playedUci: mv.from + mv.to, bestUci: null,
-    };
+    // No engine verdict: show the user's own first move from the book exit on (never the opponent's).
+    fallbackPly = line.findIndex((_, i) => i >= leak.exitPly && plyColor(i) === leak.stat.color);
+    if (fallbackPly >= 0) {
+      const c = new Chess();
+      for (const san of line.slice(0, fallbackPly)) c.move(san);
+      const fen = c.fen();
+      const mv = c.move(line[fallbackPly]);
+      verdict = {
+        fen, orientation: leak.stat.color, played: moveLabel(fallbackPly, mv.san), best: null,
+        playedUci: mv.from + mv.to, bestUci: null,
+      };
+    }
   }
+
   return {
     name: names.join(' · '),
     subtitle: `${accounts.map((a) => siteName(a.site)).join(' + ')} · ${r.total.toLocaleString('en')} games · ${period}`,
@@ -124,13 +135,13 @@ function cardData(accounts: Account[], r: Report, mistake: MoveVerdict | null, c
     leak: leak && {
       family: leak.stat.family,
       color: leak.stat.color,
-      moveNo: moveNumber(shown?.ply ?? leak.exitPly),
+      moveNo: moveNumber(shown?.ply ?? (fallbackPly >= 0 ? fallbackPly : leak.exitPly)),
       n: mistake ? leak.lineTally.n : leak.stat.n,
       score: mistake ? score(leak.lineTally) : score(leak.stat),
       lossRate: mistake ? lossRate(leak.lineTally) : lossRate(leak.stat),
       diff: mistake ? score(leak.lineTally) - score(r.byColor[leak.stat.color]) : leak.stat.diff,
       drop: mistake ? mistake.drop : null,
-      reached: reachedCount(leak.stat.items, line ?? leak.path, shown?.ply ?? leak.exitPly),
+      reached: reachedCount(leak.stat.items, line ?? leak.path, shown?.ply ?? (fallbackPly >= 0 ? fallbackPly : leak.exitPly)),
     },
     verdict,
   };

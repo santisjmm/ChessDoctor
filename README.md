@@ -1,4 +1,4 @@
-# Opening Trainer (working name)
+# ChessDoctor
 
 Training built from your own games, focused on repairing your openings. A static PWA:
 everything (game import, opening book, Stockfish) runs on the user's device.
@@ -44,7 +44,7 @@ npm run build && npx vite preview --port 4173
 PLAYWRIGHT_BROWSERS_PATH=.tools/pw LICHESS=<user> node scripts/screenshots.mjs   # phone-size screenshots → shots/
 ```
 
-Branding is a placeholder: see `src/config.ts` and the manifest in `vite.config.ts`.
+Branding lives in `src/config.ts` (name, URL) and the PWA manifest in `vite.config.ts`. The IndexedDB database keeps its original internal name `opening-trainer` so data already on devices survives.
 
 ## Licence
 

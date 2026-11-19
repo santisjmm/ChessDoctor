@@ -63,6 +63,7 @@ export interface GameReview {
   firstMistake: { ply: number; played: string; best: string; drop: number; reason: string } | null;
 }
 
+// Internal name kept from the working title: renaming it would orphan data already on devices.
 export const db = new Dexie('opening-trainer') as Dexie & {
   games: EntityTable<Game, 'id'>;
   profiles: EntityTable<Profile, 'key'>;
